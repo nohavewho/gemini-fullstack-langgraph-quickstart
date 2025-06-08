@@ -100,15 +100,6 @@ export const InputForm: React.FC<InputFormProps> = ({
         </div>
       </div>
       
-      {/* Country Selector */}
-      <div className="bg-gradient-to-r from-[#003d5c] to-[#005a7a] border-2 border-[#ffd700]/50 rounded-xl p-4 mb-3">
-        <SimpleCountrySelector
-          selectedCountries={selectedCountries}
-          onCountriesChange={setSelectedCountries}
-          preset={preset}
-          onPresetChange={setPreset}
-        />
-      </div>
       
       <div className="flex items-center justify-between">
         <div className="flex flex-row gap-2">

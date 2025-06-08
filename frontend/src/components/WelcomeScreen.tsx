@@ -1,4 +1,6 @@
 import { InputForm } from "./InputForm";
+import { CountryPresetCards } from "./CountryPresetCards";
+import { useState } from "react";
 
 interface WelcomeScreenProps {
   handleSubmit: (
@@ -15,28 +17,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onCancel,
   isLoading,
 }) => {
-  const presetQueries = [
-    { 
-      text: "Анализ прессы об Азербайджане за сегодня",
-      icon: "📰",
-      description: "Свежие новости и упоминания"
-    },
-    { 
-      text: "Мониторинг прессы в соседних странах", 
-      icon: "🌍",
-      description: "Турция, Россия, Иран, Грузия"
-    },
-    { 
-      text: "Анализ турецких СМИ об Азербайджане за неделю",
-      icon: "🇹🇷",
-      description: "Подробный обзор турецкой прессы"
-    },
-    { 
-      text: "Оценка имиджа Азербайджана в мировой прессе",
-      icon: "📊",
-      description: "Анализ тональности и трендов"
+  const [selectedPreset, setSelectedPreset] = useState("azerbaijan_focus");
+  
+  const handlePresetSelect = (presetId: string, countries: string[]) => {
+    setSelectedPreset(presetId);
+    // Generate query based on preset
+    const presetQueries = {
+      azerbaijan_focus: "Анализ прессы об Азербайджане в соседних странах",
+      european_press: "Анализ европейской прессы об Азербайджане",
+      usa_media: "Анализ американских СМИ об Азербайджане", 
+      arabic_world: "Анализ арабской прессы об Азербайджане",
+      energy_sector: "Азербайджан в энергетических СМИ",
+      global_media: "Азербайджан в мировой прессе",
+      asian_markets: "Азербайджан в азиатских СМИ",
+      custom_analysis: ""
+    };
+    
+    if (presetId !== "custom_analysis") {
+      handleSubmit(presetQueries[presetId], "medium", "gemini-2.5-flash-preview-04-17");
     }
-  ];
+  };
 
   return (
     <div className="flex flex-col items-center justify-center text-center px-4 py-4 flex-1 w-full max-w-5xl mx-auto gap-2">
@@ -71,32 +71,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </p>
       </div>
       
-      {/* Presidential Command Center */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 w-full max-w-3xl">
-        {presetQueries.map((query, index) => (
-          <button
-            key={index}
-            onClick={() => handleSubmit(query.text, "medium", "gemini-2.5-flash-preview-04-17")}
-            className="group p-4 presidential-card rounded-2xl text-left transition-all duration-300 transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden"
-            disabled={isLoading}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ffd700]/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-            <div className="flex items-start gap-5 relative z-10">
-              <div className="text-4xl p-3 bg-gradient-to-br from-[#ffd700] to-[#fff59d] rounded-xl shadow-xl group-hover:shadow-2xl group-hover:shadow-[#ffd700]/40 transition-all">
-                {query.icon}
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-[#00b5e2] group-hover:text-[#ffd700] transition-colors text-xl">
-                  {query.text}
-                </div>
-                <div className="text-sm text-[#00af50] mt-2 font-medium">
-                  {query.description}
-                </div>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+      {/* Country Preset Cards */}
+      <CountryPresetCards 
+        selectedPreset={selectedPreset}
+        onPresetSelect={handlePresetSelect}
+      />
       
       <div className="relative w-full mt-8 mb-4">
         <div className="absolute inset-0 flex items-center">
