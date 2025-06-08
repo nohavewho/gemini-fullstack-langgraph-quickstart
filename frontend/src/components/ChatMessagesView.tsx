@@ -1,7 +1,7 @@
 import type React from "react";
 import type { Message } from "@langchain/langgraph-sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Copy, CopyCheck } from "lucide-react";
+import { Loader2, Copy, CopyCheck, Bot } from "lucide-react";
 import { InputForm } from "@/components/InputForm";
 import { Button } from "@/components/ui/button";
 import { useState, ReactNode } from "react";
@@ -187,35 +187,49 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
   const isLiveActivityForThisBubble = isLastMessage && isOverallLoading;
 
   return (
-    <div className={`relative break-words flex flex-col`}>
-      {activityForThisBubble && activityForThisBubble.length > 0 && (
-        <div className="mb-3 border-b border-neutral-700 pb-3 text-xs">
-          <ActivityTimeline
-            processedEvents={activityForThisBubble}
-            isLoading={isLiveActivityForThisBubble}
-          />
-        </div>
-      )}
-      <ReactMarkdown components={mdComponents}>
-        {typeof message.content === "string"
-          ? message.content
-          : JSON.stringify(message.content)}
-      </ReactMarkdown>
-      <Button
-        variant="default"
-        className="cursor-pointer bg-neutral-700 border-neutral-600 text-neutral-300 self-end"
-        onClick={() =>
-          handleCopy(
-            typeof message.content === "string"
+    <div className={`relative break-words flex items-start gap-3 animate-slideIn`}>
+      {/* Bot icon */}
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[#00b5e2] to-[#00af50] flex items-center justify-center shadow-lg">
+        <Bot className="w-5 h-5 text-white" />
+      </div>
+      
+      {/* Message content */}
+      <div className="flex-1 bg-gradient-to-br from-neutral-800 to-neutral-700 rounded-2xl p-5 shadow-lg border border-neutral-600 max-w-[85%]">
+        {activityForThisBubble && activityForThisBubble.length > 0 && (
+          <div className="mb-4 border-b border-neutral-600 pb-3 text-xs">
+            <ActivityTimeline
+              processedEvents={activityForThisBubble}
+              isLoading={isLiveActivityForThisBubble}
+            />
+          </div>
+        )}
+        <div className="prose prose-invert max-w-none">
+          <ReactMarkdown components={mdComponents}>
+            {typeof message.content === "string"
               ? message.content
-              : JSON.stringify(message.content),
-            message.id!
-          )
-        }
-      >
-        {copiedMessageId === message.id ? "Copied" : "Copy"}
-        {copiedMessageId === message.id ? <CopyCheck /> : <Copy />}
-      </Button>
+              : JSON.stringify(message.content)}
+          </ReactMarkdown>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-3 text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
+          onClick={() =>
+            handleCopy(
+              typeof message.content === "string"
+                ? message.content
+                : JSON.stringify(message.content),
+              message.id!
+            )
+          }
+        >
+          {copiedMessageId === message.id ? (
+            <><CopyCheck className="w-3 h-3 mr-1" /> Copied</>
+          ) : (
+            <><Copy className="w-3 h-3 mr-1" /> Copy</>
+          )}
+        </Button>
+      </div>
     </div>
   );
 };
@@ -288,12 +302,16 @@ export function ChatMessagesView({
           {isLoading &&
             (messages.length === 0 ||
               messages[messages.length - 1].type === "human") && (
-              <div className="flex items-start gap-3 mt-3">
-                {" "}
-                {/* AI message row structure */}
-                <div className="relative group max-w-[85%] md:max-w-[80%] rounded-xl p-3 shadow-sm break-words bg-neutral-800 text-neutral-100 rounded-bl-none w-full min-h-[56px]">
+              <div className="flex items-start gap-3 mt-3 animate-fadeIn">
+                {/* Bot icon */}
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[#00b5e2] to-[#00af50] flex items-center justify-center shadow-lg animate-pulse">
+                  <Bot className="w-5 h-5 text-white" />
+                </div>
+                
+                {/* Loading message */}
+                <div className="flex-1 bg-gradient-to-br from-neutral-800 to-neutral-700 rounded-2xl p-5 shadow-lg border border-neutral-600 max-w-[85%] min-h-[80px]">
                   {liveActivityEvents.length > 0 ? (
-                    <div className="text-xs">
+                    <div className="text-sm">
                       <ActivityTimeline
                         processedEvents={liveActivityEvents}
                         isLoading={true}
@@ -301,8 +319,8 @@ export function ChatMessagesView({
                     </div>
                   ) : (
                     <div className="flex items-center justify-start h-full">
-                      <Loader2 className="h-5 w-5 animate-spin text-neutral-400 mr-2" />
-                      <span>Processing...</span>
+                      <Loader2 className="h-5 w-5 animate-spin text-[#00b5e2] mr-3" />
+                      <span className="text-neutral-300 animate-pulse">Analyzing Azerbaijan press coverage...</span>
                     </div>
                   )}
                 </div>

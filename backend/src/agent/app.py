@@ -111,6 +111,9 @@ async def run_research_stream(request: Request):
                 
                 yield f"data: {json.dumps({'type': 'status', 'message': 'Generating search queries...'})}\n\n"
                 
+                # Start the research with status updates
+                search_count = 0
+                
                 async for chunk in graph.astream(
                     {
                         "messages": [HumanMessage(content=query)],
@@ -130,16 +133,22 @@ async def run_research_stream(request: Request):
                     elif "web_research" in chunk:
                         search_queries = chunk.get("web_research", {}).get("search_query", [])
                         if search_queries and len(search_queries) > 0:
+                            search_count += 1
                             search_query = str(search_queries[0])[:50]
                             # Safely create message
-                            message = {'type': 'status', 'message': f'Searching: {search_query}...'}
+                            message = {'type': 'status', 'message': f'Searching ({search_count}/{config_params["initial_search_query_count"]}): {search_query}...'}
                             yield f"data: {json.dumps(message, ensure_ascii=False)}\n\n"
+                            
+                            # Add collecting status
+                            yield f"data: {json.dumps({'type': 'status', 'message': 'Collecting articles from search results...'})}\n\n"
                     
                     elif "reflection" in chunk:
-                        yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing results...'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing collected articles...'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Evaluating coverage completeness...'})}\n\n"
                     
                     elif "finalize_answer" in chunk:
-                        yield f"data: {json.dumps({'type': 'status', 'message': 'Generating final report...'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Processing sentiment analysis...'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Generating press digest...'})}\n\n"
                         # Send the final result
                         messages = chunk.get("finalize_answer", {}).get("messages", [])
                         if messages:

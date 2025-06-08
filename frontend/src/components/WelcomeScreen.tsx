@@ -111,7 +111,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           🏛️ Azərbaycan Respublikası Prezidentinin Administrasiyası
         </p>
         <p className="text-xs text-neutral-500 mt-1">
-          Powered by Google Gemini AI · 66 Languages · Real-time Analysis · 24/7 Monitoring
+          Advanced AI Technology · 66 Languages · Real-time Analysis · 24/7 Monitoring
         </p>
       </div>
     </div>

@@ -69,11 +69,15 @@ export function ActivityTimeline({
     } else if (lowerTitle.includes("digest generation")) {
       return <FileText className="h-4 w-4 text-purple-400" />;
     } else if (lowerTitle.includes("searching")) {
-      return <Search className="h-4 w-4 text-neutral-400" />;
+      return <Search className="h-4 w-4 text-blue-400 animate-pulse" />;
     } else if (lowerTitle.includes("analyzing")) {
-      return <Brain className="h-4 w-4 text-neutral-400" />;
+      return <Brain className="h-4 w-4 text-purple-400 animate-pulse" />;
     } else if (lowerTitle.includes("initializing")) {
       return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
+    } else if (lowerTitle.includes("collecting")) {
+      return <FileText className="h-4 w-4 text-green-400 animate-pulse" />;
+    } else if (lowerTitle.includes("processing")) {
+      return <TrendingUp className="h-4 w-4 text-orange-400 animate-pulse" />;
     }
     return <Activity className="h-4 w-4 text-neutral-400" />;
   };
@@ -85,18 +89,21 @@ export function ActivityTimeline({
   }, [isLoading, processedEvents]);
 
   return (
-    <Card className="border border-[#00b5e2]/30 rounded-lg bg-gradient-to-br from-neutral-800/90 to-neutral-700/90 max-h-96 shadow-lg">
-      <CardHeader>
+    <Card className="border border-[#00b5e2]/30 rounded-lg bg-gradient-to-br from-neutral-800/90 to-neutral-700/90 max-h-96 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-[#00b5e2]/20 hover:shadow-xl">
+      <CardHeader className="pb-3">
         <CardDescription className="flex items-center justify-between">
           <div
-            className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100"
+            className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100 hover:text-[#00b5e2] transition-colors"
             onClick={() => setIsTimelineCollapsed(!isTimelineCollapsed)}
           >
-            İcra Prosesi | Processing
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 bg-[#00b5e2] rounded-full animate-pulse"></div>
+              İcra Prosesi | Processing Status
+            </div>
             {isTimelineCollapsed ? (
-              <ChevronDown className="h-4 w-4 mr-2" />
+              <ChevronDown className="h-4 w-4 transition-transform duration-200" />
             ) : (
-              <ChevronUp className="h-4 w-4 mr-2" />
+              <ChevronUp className="h-4 w-4 transition-transform duration-200" />
             )}
           </div>
         </CardDescription>

@@ -126,40 +126,16 @@ export const InputForm: React.FC<InputFormProps> = ({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-row gap-2 bg-neutral-700 border-neutral-600 text-neutral-300 focus:ring-neutral-500 rounded-xl rounded-t-sm pl-2  max-w-[100%] sm:max-w-[90%]">
-            <div className="flex flex-row items-center text-sm ml-2">
-              <Cpu className="h-4 w-4 mr-2" />
-              Model
-            </div>
+          {/* Model selector hidden but kept in code */}
+          <div style={{ display: 'none' }}>
             <Select value={model} onValueChange={setModel}>
-              <SelectTrigger className="w-[150px] bg-transparent border-none cursor-pointer">
-                <SelectValue placeholder="Model" />
+              <SelectTrigger>
+                <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-neutral-700 border-neutral-600 text-neutral-300 cursor-pointer">
-                <SelectItem
-                  value="gemini-2.0-flash"
-                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
-                >
-                  <div className="flex items-center">
-                    <Zap className="h-4 w-4 mr-2 text-yellow-400" /> 2.0 Flash
-                  </div>
-                </SelectItem>
-                <SelectItem
-                  value="gemini-2.5-flash-preview-04-17"
-                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
-                >
-                  <div className="flex items-center">
-                    <Zap className="h-4 w-4 mr-2 text-orange-400" /> 2.5 Flash
-                  </div>
-                </SelectItem>
-                <SelectItem
-                  value="gemini-2.5-pro-preview-05-06"
-                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
-                >
-                  <div className="flex items-center">
-                    <Cpu className="h-4 w-4 mr-2 text-purple-400" /> 2.5 Pro
-                  </div>
-                </SelectItem>
+              <SelectContent>
+                <SelectItem value="gemini-2.0-flash">2.0 Flash</SelectItem>
+                <SelectItem value="gemini-2.5-flash-preview-04-17">2.5 Flash</SelectItem>
+                <SelectItem value="gemini-2.5-pro-preview-05-06">2.5 Pro</SelectItem>
               </SelectContent>
             </Select>
           </div>

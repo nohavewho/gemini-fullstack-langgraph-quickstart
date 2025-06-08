@@ -87,10 +87,38 @@ export default function App() {
                   const data = JSON.parse(jsonStr);
                   
                   if (data.type === 'status') {
-                    // Update timeline with status
+                    // Format status messages for better UX
+                    let formattedTitle = data.message;
+                    let formattedData = '';
+                    
+                    if (data.message.includes('Searching')) {
+                      formattedTitle = '🔍 Searching press coverage';
+                      const match = data.message.match(/Searching \((\d+)\/(\d+)\): (.+)/);
+                      if (match) {
+                        formattedData = `Query ${match[1]} of ${match[2]}: "${match[3]}"`;
+                      }
+                    } else if (data.message.includes('Initializing')) {
+                      formattedTitle = '🚀 Initializing Azerbaijan Press Monitor';
+                    } else if (data.message.includes('Generating search queries')) {
+                      formattedTitle = '🌐 Generating multi-language search queries';
+                    } else if (data.message.includes('Collecting articles')) {
+                      formattedTitle = '📰 Collecting press articles';
+                    } else if (data.message.includes('Analyzing collected')) {
+                      formattedTitle = '🧠 Analyzing collected articles';
+                    } else if (data.message.includes('Evaluating coverage')) {
+                      formattedTitle = '📊 Evaluating press coverage completeness';
+                    } else if (data.message.includes('Processing sentiment')) {
+                      formattedTitle = '💭 Processing sentiment analysis';
+                    } else if (data.message.includes('Generating press digest')) {
+                      formattedTitle = '📋 Generating Azerbaijan press digest';
+                    }
+                    
+                    // Update timeline with formatted status
                     setProcessedEventsTimeline(prev => [...prev, {
                       id: Date.now().toString(),
-                      label: data.message || 'Processing...',
+                      title: formattedTitle,
+                      label: formattedTitle,
+                      data: formattedData,
                       status: 'completed'
                     }]);
                   } else if (data.type === 'result') {
@@ -99,13 +127,19 @@ export default function App() {
                       type: "ai",
                       content: data.content
                     };
-                    setMessages(prev => [...prev, aiMessage]);
                     
-                    // Store historical activities
+                    // Store historical activities BEFORE clearing
+                    const currentTimeline = [...processedEventsTimeline];
                     setHistoricalActivities(prev => ({
                       ...prev,
-                      [aiMessage.id]: [...processedEventsTimeline]
+                      [aiMessage.id]: currentTimeline
                     }));
+                    
+                    // Clear the timeline for next message
+                    setProcessedEventsTimeline([]);
+                    
+                    // Add the message
+                    setMessages(prev => [...prev, aiMessage]);
                   } else if (data.type === 'error') {
                     throw new Error(data.message || 'Unknown error');
                   } else if (data.type === 'done') {
