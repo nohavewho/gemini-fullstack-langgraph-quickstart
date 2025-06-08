@@ -4,6 +4,11 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ChatMessagesView } from "@/components/ChatMessagesView";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { UserProfile } from "@/components/UserProfile";
+import { ChatHistory } from "@/components/ChatHistory";
+import { useChatHistory } from "@/hooks/useChatHistory";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -11,12 +16,15 @@ interface Message {
   content: string;
 }
 
-export default function App() {
+function AppContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [processedEventsTimeline, setProcessedEventsTimeline] = useState<ProcessedEvent[]>([]);
   const [historicalActivities, setHistoricalActivities] = useState<Record<string, ProcessedEvent[]>>({});
+  const [showHistory, setShowHistory] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const { createSession, addMessage } = useChatHistory();
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -33,6 +41,15 @@ export default function App() {
     setProcessedEventsTimeline([]);
     setIsLoading(true);
 
+    // Create session if user is logged in and no messages exist
+    if (user && messages.length === 0) {
+      await createSession(
+        submittedInputValue.substring(0, 50) + (submittedInputValue.length > 50 ? '...' : ''),
+        'custom',
+        []
+      );
+    }
+
     // Add human message
     const humanMessage: Message = {
       id: Date.now().toString(),
@@ -40,6 +57,11 @@ export default function App() {
       content: submittedInputValue
     };
     setMessages(prev => [...prev, humanMessage]);
+
+    // Save to database if user is logged in
+    if (user) {
+      await addMessage('human', submittedInputValue, { effort, model });
+    }
 
     try {
       // Add initial event
@@ -183,6 +205,15 @@ export default function App() {
           };
           setMessages(prev => [...prev, aiMessage]);
           
+          // Save AI response to database if user is logged in
+          if (user) {
+            await addMessage('ai', data.result, { 
+              effort, 
+              model, 
+              events: processedEventsTimeline 
+            });
+          }
+          
           // Store historical activities
           setHistoricalActivities(prev => ({
             ...prev,
@@ -217,8 +248,18 @@ export default function App() {
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#00b5e2]/5 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-[#ffd700]/5 via-transparent to-[#ffd700]/5 rounded-full blur-3xl animate-pulse"></div>
       
+      {/* User Profile */}
+      <UserProfile onShowHistory={() => setShowHistory(true)} />
+      
       {/* Language Switcher */}
       <LanguageSwitcher />
+      
+      {/* Chat History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <ChatHistory onClose={() => setShowHistory(false)} />
+        </div>
+      )}
       
       <main className="flex-1 flex flex-col max-w-5xl mx-auto w-full relative z-10 h-screen">
         {messages.length === 0 ? (
@@ -243,5 +284,15 @@ export default function App() {
       </main>
       </div>
     </LanguageProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
+    </AuthProvider>
   );
 }

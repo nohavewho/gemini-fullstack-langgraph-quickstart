@@ -1,0 +1,27 @@
+{
+  "functions": {
+    "api/auth/**": {
+      "runtime": "@vercel/node"
+    },
+    "api/user/**": {
+      "runtime": "@vercel/node"
+    },
+    "api/chat/**": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ]
+}
