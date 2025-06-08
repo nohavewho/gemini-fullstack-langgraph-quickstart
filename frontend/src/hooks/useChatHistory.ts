@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { ChatSession, Message } from '../lib/schema';
 import { useAuth } from '../contexts/AuthContext';
+import * as chatAPI from '../api/chatAPI';
 
 export function useChatHistory() {
   const { dbUser } = useAuth();
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [sessions, setSessions] = useState<chatAPI.ChatSession[]>([]);
+  const [currentSession, setCurrentSession] = useState<chatAPI.ChatSession | null>(null);
+  const [messages, setMessages] = useState<chatAPI.ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Load user's chat sessions
@@ -16,11 +16,8 @@ export function useChatHistory() {
 
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/chat/sessions?userId=${dbUser.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setSessions(data);
-        }
+        const data = await chatAPI.getSessions(dbUser.id);
+        setSessions(data);
       } catch (error) {
         console.error('Failed to load sessions:', error);
       } finally {
@@ -41,11 +38,8 @@ export function useChatHistory() {
 
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/chat/messages?sessionId=${currentSession.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setMessages(data);
-        }
+        const data = await chatAPI.getMessages(currentSession.id);
+        setMessages(data);
       } catch (error) {
         console.error('Failed to load messages:', error);
       } finally {
@@ -61,29 +55,19 @@ export function useChatHistory() {
     if (!dbUser) return null;
 
     try {
-      const response = await fetch('/api/chat/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: dbUser.id,
-          title,
-          preset,
-          countries,
-        }),
+      const newSession = await chatAPI.createSession({
+        userId: dbUser.id,
+        title,
+        preset,
+        countries,
       });
-
-      if (response.ok) {
-        const newSession = await response.json();
-        setSessions(prev => [newSession, ...prev]);
-        setCurrentSession(newSession);
-        return newSession;
-      }
+      setSessions(prev => [newSession, ...prev]);
+      setCurrentSession(newSession);
+      return newSession;
     } catch (error) {
       console.error('Failed to create session:', error);
+      return null;
     }
-    return null;
   };
 
   // Add message to current session
@@ -91,43 +75,28 @@ export function useChatHistory() {
     if (!currentSession) return null;
 
     try {
-      const response = await fetch('/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId: currentSession.id,
-          type,
-          content,
-          metadata,
-        }),
+      const newMessage = await chatAPI.addMessage({
+        sessionId: currentSession.id,
+        type,
+        content,
+        metadata,
       });
-
-      if (response.ok) {
-        const newMessage = await response.json();
-        setMessages(prev => [...prev, newMessage]);
-        return newMessage;
-      }
+      setMessages(prev => [...prev, newMessage]);
+      return newMessage;
     } catch (error) {
       console.error('Failed to add message:', error);
+      return null;
     }
-    return null;
   };
 
   // Delete session
-  const deleteSession = async (sessionId: string) => {
+  const deleteSessionById = async (sessionId: string) => {
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-        if (currentSession?.id === sessionId) {
-          setCurrentSession(null);
-          setMessages([]);
-        }
+      await chatAPI.deleteSession(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (currentSession?.id === sessionId) {
+        setCurrentSession(null);
+        setMessages([]);
       }
     } catch (error) {
       console.error('Failed to delete session:', error);
@@ -142,6 +111,6 @@ export function useChatHistory() {
     setCurrentSession,
     createSession,
     addMessage,
-    deleteSession,
+    deleteSession: deleteSessionById,
   };
 }

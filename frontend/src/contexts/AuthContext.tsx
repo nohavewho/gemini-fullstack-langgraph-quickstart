@@ -1,5 +1,5 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client';
+import { useAuth0 } from '@auth0/auth0-react';
 import { User, NewUser } from '../lib/schema';
 
 interface AuthContextType {
@@ -8,7 +8,8 @@ interface AuthContextType {
   isLoading: boolean;
   error?: string;
   loginWithRedirect: () => void;
-  logout: () => void;
+  logout: (options?: any) => void;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,32 +19,23 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { user, error, isLoading: auth0Loading } = useUser();
+  const { user, error, isLoading: auth0Loading, loginWithRedirect, logout: auth0Logout, isAuthenticated } = useAuth0();
   const [dbUser, setDbUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Sync user with database
   useEffect(() => {
-    const syncUser = async () => {
+    const syncUserData = async () => {
       if (user) {
         try {
-          const response = await fetch('/api/user/sync', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              auth0Id: user.sub,
-              email: user.email,
-              name: user.name,
-              avatar: user.picture,
-            }),
+          const { syncUser } = await import('../api/userSync');
+          const userData = await syncUser({
+            auth0Id: user.sub,
+            email: user.email,
+            name: user.name,
+            avatar: user.picture,
           });
-
-          if (response.ok) {
-            const userData = await response.json();
-            setDbUser(userData);
-          }
+          setDbUser(userData);
         } catch (error) {
           console.error('Failed to sync user:', error);
         }
@@ -54,16 +46,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     if (!auth0Loading) {
-      syncUser();
+      syncUserData();
     }
   }, [user, auth0Loading]);
 
-  const loginWithRedirect = () => {
-    window.location.href = '/api/auth/login';
-  };
-
-  const logout = () => {
-    window.location.href = '/api/auth/logout';
+  const logout = (options?: any) => {
+    auth0Logout({
+      logoutParams: {
+        returnTo: window.location.origin
+      },
+      ...options
+    });
   };
 
   return (
@@ -73,7 +66,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoading: isLoading || auth0Loading,
       error,
       loginWithRedirect,
-      logout
+      logout,
+      isAuthenticated
     }}>
       {children}
     </AuthContext.Provider>
