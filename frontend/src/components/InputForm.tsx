@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CountrySelector } from "./CountrySelector";
+import { SimpleCountrySelector } from "./SimpleCountrySelector";
 
 // Updated InputFormProps
 interface InputFormProps {
@@ -102,13 +102,11 @@ export const InputForm: React.FC<InputFormProps> = ({
       
       {/* Country Selector */}
       <div className="bg-gradient-to-r from-[#003d5c] to-[#005a7a] border-2 border-[#ffd700]/50 rounded-xl p-4 mb-3">
-        <CountrySelector
+        <SimpleCountrySelector
           selectedCountries={selectedCountries}
           onCountriesChange={setSelectedCountries}
           preset={preset}
           onPresetChange={setPreset}
-          maxCountries={5}
-          placeholder="Select countries to monitor..."
         />
       </div>
       
