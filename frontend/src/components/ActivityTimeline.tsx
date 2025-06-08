@@ -25,6 +25,9 @@ import { useEffect, useState } from "react";
 export interface ProcessedEvent {
   title: string;
   data: any;
+  label?: string;
+  id?: string;
+  status?: string;
 }
 
 interface ActivityTimelineProps {
@@ -40,12 +43,12 @@ export function ActivityTimeline({
     useState<boolean>(false);
   const getEventIcon = (title: string | undefined, index: number) => {
     if (index === 0 && isLoading && processedEvents.length === 0) {
-      return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
+      return <Loader2 className="h-4 w-4 text-[#ffd700] animate-spin" />;
     }
     
     // Handle undefined or null title
     if (!title) {
-      return <Activity className="h-4 w-4 text-neutral-400" />;
+      return <Activity className="h-4 w-4 text-[#00b5e2]" />;
     }
     
     const lowerTitle = title.toLowerCase();
@@ -69,17 +72,17 @@ export function ActivityTimeline({
     } else if (lowerTitle.includes("digest generation")) {
       return <FileText className="h-4 w-4 text-purple-400" />;
     } else if (lowerTitle.includes("searching")) {
-      return <Search className="h-4 w-4 text-blue-400 animate-pulse" />;
+      return <Search className="h-4 w-4 text-[#00b5e2] animate-pulse" />;
     } else if (lowerTitle.includes("analyzing")) {
-      return <Brain className="h-4 w-4 text-purple-400 animate-pulse" />;
+      return <Brain className="h-4 w-4 text-[#ffd700] animate-pulse" />;
     } else if (lowerTitle.includes("initializing")) {
-      return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
+      return <Loader2 className="h-4 w-4 text-[#ffd700] animate-spin" />;
     } else if (lowerTitle.includes("collecting")) {
-      return <FileText className="h-4 w-4 text-green-400 animate-pulse" />;
+      return <FileText className="h-4 w-4 text-[#00af50] animate-pulse" />;
     } else if (lowerTitle.includes("processing")) {
-      return <TrendingUp className="h-4 w-4 text-orange-400 animate-pulse" />;
+      return <TrendingUp className="h-4 w-4 text-[#ef3340] animate-pulse" />;
     }
-    return <Activity className="h-4 w-4 text-neutral-400" />;
+    return <Activity className="h-4 w-4 text-[#00b5e2]" />;
   };
 
   useEffect(() => {
@@ -89,15 +92,15 @@ export function ActivityTimeline({
   }, [isLoading, processedEvents]);
 
   return (
-    <Card className="border border-[#00b5e2]/30 rounded-lg bg-gradient-to-br from-neutral-800/90 to-neutral-700/90 max-h-96 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-[#00b5e2]/20 hover:shadow-xl">
+    <Card className="border-2 border-[#ffd700]/50 rounded-xl bg-gradient-to-br from-[#003d5c]/90 via-[#005a7a]/80 to-[#003d5c]/90 max-h-96 shadow-xl backdrop-blur-sm transition-all duration-300 hover:shadow-[#ffd700]/30 hover:shadow-2xl">
       <CardHeader className="pb-3">
         <CardDescription className="flex items-center justify-between">
           <div
-            className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100 hover:text-[#00b5e2] transition-colors"
+            className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-[#ffd700] hover:text-[#fff59d] transition-colors font-bold"
             onClick={() => setIsTimelineCollapsed(!isTimelineCollapsed)}
           >
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 bg-[#00b5e2] rounded-full animate-pulse"></div>
+              <div className="h-3 w-3 bg-[#ffd700] rounded-full animate-pulse shadow-lg shadow-[#ffd700]/50"></div>
               İcra Prosesi | Processing Status
             </div>
             {isTimelineCollapsed ? (
@@ -113,12 +116,12 @@ export function ActivityTimeline({
           <CardContent>
             {isLoading && processedEvents.length === 0 && (
               <div className="relative pl-8 pb-4">
-                <div className="absolute left-3 top-3.5 h-full w-0.5 bg-neutral-800" />
-                <div className="absolute left-0.5 top-2 h-5 w-5 rounded-full bg-neutral-800 flex items-center justify-center ring-4 ring-neutral-900">
-                  <Loader2 className="h-3 w-3 text-neutral-400 animate-spin" />
+                <div className="absolute left-3 top-3.5 h-full w-0.5 bg-[#ffd700]/30" />
+                <div className="absolute left-0.5 top-2 h-5 w-5 rounded-full bg-gradient-to-br from-[#ffd700] to-[#fff59d] flex items-center justify-center ring-4 ring-[#003d5c]/50 shadow-lg">
+                  <Loader2 className="h-3 w-3 text-[#003d5c] animate-spin" />
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-300 font-medium">
+                  <p className="text-sm text-[#00b5e2] font-bold">
                     Searching...
                   </p>
                 </div>
@@ -130,16 +133,16 @@ export function ActivityTimeline({
                   <div key={index} className="relative pl-8 pb-4">
                     {index < processedEvents.length - 1 ||
                     (isLoading && index === processedEvents.length - 1) ? (
-                      <div className="absolute left-3 top-3.5 h-full w-0.5 bg-neutral-600" />
+                      <div className="absolute left-3 top-3.5 h-full w-0.5 bg-[#ffd700]/30" />
                     ) : null}
-                    <div className="absolute left-0.5 top-2 h-6 w-6 rounded-full bg-neutral-600 flex items-center justify-center ring-4 ring-neutral-700">
+                    <div className="absolute left-0.5 top-2 h-6 w-6 rounded-full bg-gradient-to-br from-[#00b5e2] to-[#00af50] flex items-center justify-center ring-4 ring-[#ffd700]/20 shadow-lg">
                       {getEventIcon(eventItem.label || eventItem.title, index)}
                     </div>
                     <div>
-                      <p className="text-sm text-neutral-200 font-medium mb-0.5">
+                      <p className="text-sm text-[#ffd700] font-bold mb-0.5">
                         {eventItem.label || eventItem.title}
                       </p>
-                      <p className="text-xs text-neutral-300 leading-relaxed">
+                      <p className="text-xs text-[#00b5e2] leading-relaxed font-medium">
                         {typeof eventItem.data === "string"
                           ? eventItem.data
                           : Array.isArray(eventItem.data)
@@ -151,11 +154,11 @@ export function ActivityTimeline({
                 ))}
                 {isLoading && processedEvents.length > 0 && (
                   <div className="relative pl-8 pb-4">
-                    <div className="absolute left-0.5 top-2 h-5 w-5 rounded-full bg-neutral-600 flex items-center justify-center ring-4 ring-neutral-700">
-                      <Loader2 className="h-3 w-3 text-neutral-400 animate-spin" />
+                    <div className="absolute left-0.5 top-2 h-5 w-5 rounded-full bg-gradient-to-br from-[#ffd700] to-[#fff59d] flex items-center justify-center ring-4 ring-[#003d5c]/50 shadow-lg">
+                      <Loader2 className="h-3 w-3 text-[#003d5c] animate-spin" />
                     </div>
                     <div>
-                      <p className="text-sm text-neutral-300 font-medium">
+                      <p className="text-sm text-[#00b5e2] font-bold">
                         Searching...
                       </p>
                     </div>
@@ -163,10 +166,10 @@ export function ActivityTimeline({
                 )}
               </div>
             ) : !isLoading ? ( // Only show "No activity" if not loading and no events
-              <div className="flex flex-col items-center justify-center h-full text-neutral-500 pt-10">
+              <div className="flex flex-col items-center justify-center h-full text-[#ffd700]/50 pt-10">
                 <Info className="h-6 w-6 mb-3" />
-                <p className="text-sm">No activity to display.</p>
-                <p className="text-xs text-neutral-600 mt-1">
+                <p className="text-sm font-medium">No activity to display.</p>
+                <p className="text-xs text-[#00b5e2]/50 mt-1">
                   Timeline will update during processing.
                 </p>
               </div>

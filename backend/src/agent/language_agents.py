@@ -88,21 +88,40 @@ AZERBAIJAN_TRANSLATIONS = {
 async def create_language_search_queries(
     language_code: str, 
     language_name: str,
-    model: ChatGoogleGenerativeAI
+    model: ChatGoogleGenerativeAI,
+    date_filter: Optional[str] = None
 ) -> List[str]:
-    """Create simple search queries to find ALL articles mentioning Azerbaijan"""
+    """Create search queries using local language terms"""
     
     azerbaijan_terms = AZERBAIJAN_TRANSLATIONS.get(language_code, ["Azerbaijan"])
-    main_az_term = azerbaijan_terms[0] if azerbaijan_terms else "Azerbaijan"
     
-    # Simple queries - find everything mentioning Azerbaijan
-    # Let AI filter by headlines later 
-    queries = [
-        main_az_term,  # Local language term
-        "Azerbaijan",  # English term always works
-    ]
-        
-    return queries[:2]  # Max 2 simple queries
+    # Use the MULTI_LANGUAGE_SEARCH_PROMPT to generate queries
+    from .press_prompts import MULTI_LANGUAGE_SEARCH_PROMPT
+    from datetime import datetime
+    
+    prompt = MULTI_LANGUAGE_SEARCH_PROMPT.format(
+        language_name=language_name,
+        language_code=language_code,
+        azerbaijan_terms=", ".join(azerbaijan_terms),
+        current_date=datetime.now().strftime("%B %d, %Y")
+    )
+    
+    try:
+        response = await model.ainvoke(prompt)
+        queries = response.content.strip().split('\n')
+        # Clean up queries
+        queries = [q.strip() for q in queries if q.strip()]
+        # Add date filter if provided
+        if date_filter:
+            queries = [f"{q} {date_filter}" for q in queries]
+        return queries[:5]  # Max 5 queries
+    except:
+        # Fallback to simple queries
+        main_term = azerbaijan_terms[0] if azerbaijan_terms else "Azerbaijan"
+        queries = [main_term]
+        if date_filter:
+            queries = [f"{q} {date_filter}" for q in queries]
+        return queries
 
 
 async def language_search_node(state: OrchestratorState) -> Dict[str, Any]:
@@ -196,7 +215,8 @@ async def search_news_in_language(
         queries = await create_language_search_queries(
             language_code,
             language_name,
-            model
+            model,
+            date_filter
         )
         language_state["search_queries"] = queries
     

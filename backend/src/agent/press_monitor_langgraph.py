@@ -28,7 +28,9 @@ def detect_press_monitor_intent(message: str) -> bool:
         "monitor press", "press monitoring", "monitor news", "news monitoring",
         "track press", "track news", "monitor azerbaijan", "press about azerbaijan",
         "news about azerbaijan", "мониторинг прессы", "отслеживать новости",
-        "monitor media", "media monitoring", "press coverage", "news coverage"
+        "monitor media", "media monitoring", "press coverage", "news coverage",
+        "анализ прессы", "пресса", "новости об азербайджане", "азербайджан в прессе",
+        "обзор прессы", "дайджест прессы"
     ]
     message_lower = message.lower()
     return any(keyword in message_lower for keyword in keywords)
@@ -42,16 +44,50 @@ def extract_monitoring_params(message: str) -> Dict[str, Any]:
         "target_regions": []
     }
     
+    # Country mappings for specific country mentions
+    country_to_lang = {
+        "армении": "hy", "armenia": "hy",
+        "турции": "tr", "turkey": "tr", 
+        "россии": "ru", "russia": "ru",
+        "ирана": "fa", "iran": "fa",
+        "грузии": "ka", "georgia": "ka",
+        "китая": "zh", "china": "zh",
+        "японии": "ja", "japan": "ja"
+    }
+    
+    message_lower = message.lower()
+    
+    # Check for specific country mentions
+    country_found = False
+    for country, lang in country_to_lang.items():
+        if country in message_lower:
+            params["target_languages"] = [lang]
+            params["search_mode"] = "specific_languages"
+            country_found = True
+            break
+    
+    # If no specific country, default to neighbors
+    if not country_found and ("анализ прессы" in message_lower or "пресса" in message_lower):
+        params["target_languages"] = ["tr", "ru", "fa", "ka", "hy"]  # Turkey, Russia, Iran, Georgia, Armenia
+        params["search_mode"] = "specific_languages"
+        params["target_regions"] = ["neighbors"]
+    
     # Check for language codes
     lang_pattern = r'\b([a-z]{2})\b'
-    potential_langs = re.findall(lang_pattern, message.lower())
+    potential_langs = re.findall(lang_pattern, message_lower)
     valid_langs = ['en', 'ru', 'tr', 'ar', 'zh', 'ja', 'ko', 'de', 'fr', 'es', 'pt', 'it', 
                    'hi', 'fa', 'he', 'ka', 'hy', 'az', 'kk', 'uz', 'tk', 'ky', 'tg']
-    params["target_languages"] = [lang for lang in potential_langs if lang in valid_langs]
+    
+    # Only use language codes if no country was found
+    if not country_found and potential_langs:
+        found_langs = [lang for lang in potential_langs if lang in valid_langs]
+        if found_langs:
+            params["target_languages"] = found_langs
+            params["search_mode"] = "specific_languages"
     
     # Check for regions
     regions = {
-        "neighbors": ["tr", "ru", "ir", "ge", "am"],
+        "neighbors": ["tr", "ru", "fa", "ka", "hy"],  # Updated neighbors list
         "central asia": ["kk", "uz", "tk", "ky", "tg"],
         "southeast asia": ["th", "id", "ms", "vi", "tl"],
         "europe": ["en", "de", "fr", "es", "it", "pt"],
@@ -59,14 +95,12 @@ def extract_monitoring_params(message: str) -> Dict[str, Any]:
         "asia": ["zh", "ja", "ko", "hi", "bn", "ur"]
     }
     
-    message_lower = message.lower()
     for region, langs in regions.items():
         if region in message_lower:
             params["target_regions"].append(region)
-            params["search_mode"] = "regions"
-    
-    if params["target_languages"]:
-        params["search_mode"] = "specific_languages"
+            if not params["target_languages"]:  # Only set languages if not already set
+                params["target_languages"] = langs
+                params["search_mode"] = "specific_languages"
     
     return params
 

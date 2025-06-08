@@ -40,6 +40,12 @@ if os.getenv("GEMINI_API_KEY") is None:
 genai_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
+def extract_monitoring_params_from_content(message: str) -> dict:
+    """Extract monitoring parameters from message content - delegates to press_monitor_langgraph"""
+    from .press_monitor_langgraph import extract_monitoring_params
+    return extract_monitoring_params(message)
+
+
 # Nodes
 def generate_query(state: OverallState, config: RunnableConfig) -> QueryGenerationState:
     """LangGraph node that generates a search queries based on the User's question.

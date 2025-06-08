@@ -73,7 +73,7 @@ const mdComponents = {
   blockquote: ({ className, children, ...props }: MdComponentProps) => (
     <blockquote
       className={cn(
-        "border-l-4 border-neutral-600 pl-4 italic my-3 text-sm",
+        "border-l-4 border-[#ffd700] pl-4 italic my-3 text-sm bg-gradient-to-r from-[#ffd700]/10 to-transparent py-2 rounded-r-lg",
         className
       )}
       {...props}
@@ -84,7 +84,7 @@ const mdComponents = {
   code: ({ className, children, ...props }: MdComponentProps) => (
     <code
       className={cn(
-        "bg-neutral-900 rounded px-1 py-0.5 font-mono text-xs",
+        "bg-gradient-to-r from-[#00b5e2]/20 to-[#00af50]/20 rounded px-2 py-1 font-mono text-xs border border-[#ffd700]/30",
         className
       )}
       {...props}
@@ -95,7 +95,7 @@ const mdComponents = {
   pre: ({ className, children, ...props }: MdComponentProps) => (
     <pre
       className={cn(
-        "bg-neutral-900 p-3 rounded-lg overflow-x-auto font-mono text-xs my-3",
+        "bg-gradient-to-br from-[#003d5c] to-[#005a7a] p-4 rounded-xl overflow-x-auto font-mono text-xs my-3 gold-border shadow-xl",
         className
       )}
       {...props}
@@ -104,7 +104,7 @@ const mdComponents = {
     </pre>
   ),
   hr: ({ className, ...props }: MdComponentProps) => (
-    <hr className={cn("border-neutral-600 my-4", className)} {...props} />
+    <hr className={cn("border-[#ffd700] my-4 opacity-50", className)} {...props} />
   ),
   table: ({ className, children, ...props }: MdComponentProps) => (
     <div className="my-3 overflow-x-auto">
@@ -116,7 +116,7 @@ const mdComponents = {
   th: ({ className, children, ...props }: MdComponentProps) => (
     <th
       className={cn(
-        "border border-neutral-600 px-3 py-2 text-left font-bold",
+        "border border-[#ffd700] px-3 py-2 text-left font-bold bg-gradient-to-r from-[#00b5e2]/20 to-[#00af50]/20",
         className
       )}
       {...props}
@@ -126,7 +126,7 @@ const mdComponents = {
   ),
   td: ({ className, children, ...props }: MdComponentProps) => (
     <td
-      className={cn("border border-neutral-600 px-3 py-2", className)}
+      className={cn("border border-[#ffd700]/50 px-3 py-2", className)}
       {...props}
     >
       {children}
@@ -147,13 +147,16 @@ const HumanMessageBubble: React.FC<HumanMessageBubbleProps> = ({
 }) => {
   return (
     <div
-      className={`text-white rounded-2xl break-words min-h-7 bg-gradient-to-br from-neutral-700 to-neutral-600 max-w-[100%] sm:max-w-[90%] px-5 py-4 rounded-br-lg shadow-lg border border-neutral-600`}
+      className={`text-white rounded-2xl break-words min-h-7 bg-gradient-to-br from-[#00b5e2] to-[#00af50] max-w-[100%] sm:max-w-[90%] px-6 py-5 rounded-br-lg shadow-2xl border-2 border-[#ffd700] relative overflow-hidden`}
     >
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ffd700]/10 to-transparent opacity-50"></div>
+      <div className="relative z-10">
       <ReactMarkdown components={mdComponents}>
         {typeof message.content === "string"
           ? message.content
           : JSON.stringify(message.content)}
       </ReactMarkdown>
+      </div>
     </div>
   );
 };
@@ -188,15 +191,17 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
 
   return (
     <div className={`relative break-words flex items-start gap-3 animate-slideIn`}>
-      {/* Bot icon */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[#00b5e2] to-[#00af50] flex items-center justify-center shadow-lg">
-        <Bot className="w-5 h-5 text-white" />
+      {/* Presidential Bot icon */}
+      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-[#ffd700] to-[#fff59d] flex items-center justify-center shadow-2xl border-2 border-[#ffd700] animate-pulse">
+        <Bot className="w-6 h-6 text-[#003d5c]" />
       </div>
       
-      {/* Message content */}
-      <div className="flex-1 bg-gradient-to-br from-neutral-800 to-neutral-700 rounded-2xl p-5 shadow-lg border border-neutral-600 max-w-[85%]">
+      {/* Presidential Message content */}
+      <div className="flex-1 presidential-card rounded-2xl p-6 shadow-2xl max-w-[85%] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#00b5e2]/5 via-[#ef3340]/5 to-[#00af50]/5"></div>
+        <div className="relative z-10">
         {activityForThisBubble && activityForThisBubble.length > 0 && (
-          <div className="mb-4 border-b border-neutral-600 pb-3 text-xs">
+          <div className="mb-4 border-b border-[#ffd700]/50 pb-3 text-xs">
             <ActivityTimeline
               processedEvents={activityForThisBubble}
               isLoading={isLiveActivityForThisBubble}
@@ -213,7 +218,7 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          className="mt-3 text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
+          className="mt-3 text-xs text-[#00b5e2] hover:text-[#ffd700] transition-all hover:scale-105 font-semibold"
           onClick={() =>
             handleCopy(
               typeof message.content === "string"
@@ -229,6 +234,7 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
             <><Copy className="w-3 h-3 mr-1" /> Copy</>
           )}
         </Button>
+        </div>
       </div>
     </div>
   );
@@ -303,13 +309,15 @@ export function ChatMessagesView({
             (messages.length === 0 ||
               messages[messages.length - 1].type === "human") && (
               <div className="flex items-start gap-3 mt-3 animate-fadeIn">
-                {/* Bot icon */}
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[#00b5e2] to-[#00af50] flex items-center justify-center shadow-lg animate-pulse">
-                  <Bot className="w-5 h-5 text-white" />
+                {/* Presidential Bot icon */}
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-[#ffd700] to-[#fff59d] flex items-center justify-center shadow-2xl border-2 border-[#ffd700] animate-pulse">
+                  <Bot className="w-6 h-6 text-[#003d5c]" />
                 </div>
                 
-                {/* Loading message */}
-                <div className="flex-1 bg-gradient-to-br from-neutral-800 to-neutral-700 rounded-2xl p-5 shadow-lg border border-neutral-600 max-w-[85%] min-h-[80px]">
+                {/* Presidential Loading message */}
+                <div className="flex-1 presidential-card rounded-2xl p-6 shadow-2xl max-w-[85%] min-h-[100px] relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#00b5e2]/10 via-[#ffd700]/20 to-[#00af50]/10 animate-pulse"></div>
+                  <div className="relative z-10">
                   {liveActivityEvents.length > 0 ? (
                     <div className="text-sm">
                       <ActivityTimeline
@@ -319,10 +327,11 @@ export function ChatMessagesView({
                     </div>
                   ) : (
                     <div className="flex items-center justify-start h-full">
-                      <Loader2 className="h-5 w-5 animate-spin text-[#00b5e2] mr-3" />
-                      <span className="text-neutral-300 animate-pulse">Analyzing Azerbaijan press coverage...</span>
+                      <Loader2 className="h-6 w-6 animate-spin text-[#ffd700] mr-4" />
+                      <span className="text-[#00b5e2] font-semibold text-lg animate-pulse">Analyzing Azerbaijan press coverage...</span>
                     </div>
                   )}
+                  </div>
                 </div>
               </div>
             )}

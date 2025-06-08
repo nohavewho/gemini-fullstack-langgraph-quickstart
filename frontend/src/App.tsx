@@ -207,8 +207,13 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-neutral-100 font-sans antialiased">
-      <main className="flex-1 flex flex-col overflow-hidden max-w-4xl mx-auto w-full">
+    <div className="flex h-screen bg-gradient-to-br from-[#003d5c] via-[#005a7a] to-[#003d5c] text-[#ffd700] font-sans antialiased relative overflow-hidden">
+      {/* Presidential Background Effects */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-[#00b5e2]/10 via-[#ef3340]/10 to-[#00af50]/10"></div>
+      <div className="absolute top-0 left-0 w-96 h-96 bg-[#ffd700]/5 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#00b5e2]/5 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-[#ffd700]/5 via-transparent to-[#ffd700]/5 rounded-full blur-3xl animate-pulse"></div>
+      <main className="flex-1 flex flex-col overflow-hidden max-w-5xl mx-auto w-full relative z-10">
         <div className={`flex-1 overflow-y-auto ${messages.length === 0 ? "flex" : ""}`}>
           {messages.length === 0 ? (
             <WelcomeScreen

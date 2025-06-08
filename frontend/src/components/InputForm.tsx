@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { SquarePen, Brain, Send, StopCircle, Zap, Cpu } from "lucide-react";
+import { SquarePen, Brain, Send, StopCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -54,15 +54,17 @@ export const InputForm: React.FC<InputFormProps> = ({
       <div
         className={`flex flex-row items-center justify-between text-white rounded-3xl rounded-bl-sm ${
           hasHistory ? "rounded-br-sm" : ""
-        } break-words min-h-7 bg-neutral-700 px-4 pt-3 `}
+        } break-words min-h-7 bg-gradient-to-r from-[#003d5c] to-[#005a7a] px-5 pt-4 shadow-xl border-2 border-[#ffd700]/50 relative overflow-hidden`}
       >
+        <div className="absolute inset-0 bg-gradient-to-r from-[#ffd700]/5 via-transparent to-[#ffd700]/5"></div>
+        <div className="relative z-10 flex-1 flex items-center">
         <Textarea
           value={internalInputValue}
           onChange={(e) => setInternalInputValue(e.target.value)}
           onKeyDown={handleInternalKeyDown}
           placeholder="Анализ прессы об Азербайджане в Турции за последние 3 дня"
-          className={`w-full text-neutral-100 placeholder-neutral-500 resize-none border-0 focus:outline-none focus:ring-0 outline-none focus-visible:ring-0 shadow-none 
-                        md:text-base  min-h-[56px] max-h-[200px]`}
+          className={`w-full text-[#ffd700] placeholder-[#ffd700]/50 resize-none border-0 focus:outline-none focus:ring-0 outline-none focus-visible:ring-0 shadow-none bg-transparent
+                        md:text-base min-h-[56px] max-h-[200px] font-medium`}
           rows={1}
         />
         <div className="-mt-3">
@@ -71,10 +73,10 @@ export const InputForm: React.FC<InputFormProps> = ({
               type="button"
               variant="ghost"
               size="icon"
-              className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-2 cursor-pointer rounded-full transition-all duration-200"
+              className="text-[#ef3340] hover:text-[#ffd700] hover:bg-[#ef3340]/20 p-2 cursor-pointer rounded-full transition-all duration-200 hover:scale-110"
               onClick={onCancel}
             >
-              <StopCircle className="h-5 w-5" />
+              <StopCircle className="h-6 w-6" />
             </Button>
           ) : (
             <Button
@@ -82,44 +84,45 @@ export const InputForm: React.FC<InputFormProps> = ({
               variant="ghost"
               className={`${
                 isSubmitDisabled
-                  ? "text-neutral-500"
-                  : "text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
-              } p-2 cursor-pointer rounded-full transition-all duration-200 text-base`}
+                  ? "text-[#ffd700]/30"
+                  : "text-[#ffd700] hover:text-[#fff59d] hover:bg-[#ffd700]/20"
+              } p-3 cursor-pointer rounded-full transition-all duration-200 text-base font-bold hover:scale-110 hover:shadow-lg hover:shadow-[#ffd700]/30`}
               disabled={isSubmitDisabled}
             >
               Search
-              <Send className="h-5 w-5" />
+              <Send className="h-6 w-6 ml-2" />
             </Button>
           )}
+        </div>
         </div>
       </div>
       <div className="flex items-center justify-between">
         <div className="flex flex-row gap-2">
-          <div className="flex flex-row gap-2 bg-neutral-700 border-neutral-600 text-neutral-300 focus:ring-neutral-500 rounded-xl rounded-t-sm pl-2  max-w-[100%] sm:max-w-[90%]">
+          <div className="flex flex-row gap-2 bg-gradient-to-r from-[#00b5e2] to-[#00af50] border-2 border-[#ffd700] text-white focus:ring-[#ffd700] rounded-xl rounded-t-sm pl-3 max-w-[100%] sm:max-w-[90%] shadow-lg">
             <div className="flex flex-row items-center text-sm">
-              <Brain className="h-4 w-4 mr-2" />
+              <Brain className="h-5 w-5 mr-2 text-[#ffd700]" />
               Effort
             </div>
             <Select value={effort} onValueChange={setEffort}>
               <SelectTrigger className="w-[120px] bg-transparent border-none cursor-pointer">
                 <SelectValue placeholder="Effort" />
               </SelectTrigger>
-              <SelectContent className="bg-neutral-700 border-neutral-600 text-neutral-300 cursor-pointer">
+              <SelectContent className="bg-gradient-to-br from-[#003d5c] to-[#005a7a] border-2 border-[#ffd700] text-[#ffd700] cursor-pointer shadow-xl">
                 <SelectItem
                   value="low"
-                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
+                  className="hover:bg-[#ffd700]/20 focus:bg-[#ffd700]/20 cursor-pointer font-medium"
                 >
                   Low
                 </SelectItem>
                 <SelectItem
                   value="medium"
-                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
+                  className="hover:bg-[#ffd700]/20 focus:bg-[#ffd700]/20 cursor-pointer font-medium"
                 >
                   Medium
                 </SelectItem>
                 <SelectItem
                   value="high"
-                  className="hover:bg-neutral-600 focus:bg-neutral-600 cursor-pointer"
+                  className="hover:bg-[#ffd700]/20 focus:bg-[#ffd700]/20 cursor-pointer font-medium"
                 >
                   High
                 </SelectItem>
@@ -142,11 +145,11 @@ export const InputForm: React.FC<InputFormProps> = ({
         </div>
         {hasHistory && (
           <Button
-            className="bg-neutral-700 border-neutral-600 text-neutral-300 cursor-pointer rounded-xl rounded-t-sm pl-2 "
+            className="bg-gradient-to-r from-[#ef3340] to-[#ef3340]/80 border-2 border-[#ffd700] text-white cursor-pointer rounded-xl rounded-t-sm pl-3 pr-4 font-bold hover:from-[#ffd700] hover:to-[#fff59d] hover:text-[#003d5c] transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-[#ffd700]/30"
             variant="default"
             onClick={() => window.location.reload()}
           >
-            <SquarePen size={16} />
+            <SquarePen size={18} className="mr-2" />
             New Search
           </Button>
         )}

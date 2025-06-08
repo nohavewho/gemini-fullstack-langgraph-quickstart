@@ -39,46 +39,57 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center text-center px-4 flex-1 w-full max-w-4xl mx-auto gap-4">
-      {/* Azerbaijan Flag Header */}
-      <div className="w-full mb-6">
-        <div className="h-2 bg-gradient-to-r from-[#00b5e2] via-[#ef3340] to-[#00af50] rounded-full shadow-lg"></div>
+    <div className="flex flex-col items-center justify-center text-center px-4 flex-1 w-full max-w-5xl mx-auto gap-4">
+      {/* Luxurious Presidential Header */}
+      <div className="w-full mb-8">
+        <div className="h-4 presidential-gradient rounded-full shadow-2xl animate-pulse"></div>
+        <div className="h-2 gold-shimmer rounded-full mt-2 shadow-xl"></div>
       </div>
       
-      <div className="relative">
-        {/* Crescent and Star Symbol */}
-        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
-          <div className="text-6xl">☪️⭐</div>
+      <div className="relative mb-8">
+        {/* Presidential Emblem */}
+        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
+          <div className="w-24 h-24 bg-gradient-to-br from-[#ffd700] via-[#fff59d] to-[#ffd700] rounded-full flex items-center justify-center shadow-2xl animate-pulse">
+            <span className="text-5xl">⭐</span>
+          </div>
         </div>
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-[#00b5e2] via-[#ef3340] to-[#00af50] bg-clip-text text-transparent mb-3 pt-10">
-          Azerbaijan Press Monitor
+        <h1 className="text-6xl md:text-7xl font-bold text-gold-gradient mb-4 pt-16 drop-shadow-2xl tracking-wider">
+          AZƏRBAYCAN
         </h1>
-        <p className="text-xl md:text-2xl text-neutral-300 font-medium">
-          Prezident Administrasiyası üçün Mətbuat Monitorinqi
-        </p>
-        <p className="text-lg text-neutral-400 mt-2">
-          Global Media Analysis System
+        <h2 className="text-4xl md:text-5xl font-bold text-royal-gradient mb-4">
+          Prezident Mətbuat Monitorinqi
+        </h2>
+        <div className="flex items-center justify-center gap-4 mb-2">
+          <div className="h-1 w-20 gold-shimmer rounded-full"></div>
+          <p className="text-2xl md:text-3xl font-bold text-[#ffd700] tracking-wide">
+            Presidential Press Monitor
+          </p>
+          <div className="h-1 w-20 gold-shimmer rounded-full"></div>
+        </div>
+        <p className="text-xl text-[#00b5e2] font-semibold mt-3">
+          Global Media Intelligence System
         </p>
       </div>
       
-      {/* Preset Query Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6 w-full max-w-2xl">
+      {/* Presidential Command Center */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 w-full max-w-3xl">
         {presetQueries.map((query, index) => (
           <button
             key={index}
             onClick={() => handleSubmit(query.text, "medium", "gemini-2.5-flash-preview-04-17")}
-            className="group p-5 bg-gradient-to-br from-neutral-800 to-neutral-700 hover:from-neutral-700 hover:to-neutral-600 rounded-xl text-left transition-all duration-300 border border-neutral-600 hover:border-[#00b5e2] shadow-lg hover:shadow-xl hover:shadow-[#00b5e2]/20 transform hover:-translate-y-1"
+            className="group p-6 presidential-card rounded-2xl text-left transition-all duration-300 transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden"
             disabled={isLoading}
           >
-            <div className="flex items-start gap-4">
-              <div className="text-3xl p-2 bg-gradient-to-br from-[#00b5e2]/20 to-[#00af50]/20 rounded-lg border border-[#00b5e2]/30 group-hover:border-[#00b5e2]/50">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ffd700]/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+            <div className="flex items-start gap-5 relative z-10">
+              <div className="text-4xl p-3 bg-gradient-to-br from-[#ffd700] to-[#fff59d] rounded-xl shadow-xl group-hover:shadow-2xl group-hover:shadow-[#ffd700]/40 transition-all">
                 {query.icon}
               </div>
               <div className="flex-1">
-                <div className="font-semibold text-neutral-100 group-hover:text-white transition-colors text-lg">
+                <div className="font-bold text-[#00b5e2] group-hover:text-[#ffd700] transition-colors text-xl">
                   {query.text}
                 </div>
-                <div className="text-sm text-neutral-400 mt-1 group-hover:text-neutral-300">
+                <div className="text-sm text-[#00af50] mt-2 font-medium">
                   {query.description}
                 </div>
               </div>
@@ -87,12 +98,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ))}
       </div>
       
-      <div className="relative w-full mt-4">
+      <div className="relative w-full mt-8 mb-4">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-neutral-700"></div>
+          <div className="w-full h-0.5 presidential-gradient opacity-50"></div>
         </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-neutral-800 px-4 text-neutral-500">или введите свой запрос</span>
+        <div className="relative flex justify-center">
+          <span className="bg-gradient-to-r from-[#00b5e2] to-[#00af50] px-6 py-2 text-white font-bold rounded-full shadow-xl text-lg">CUSTOM COMMAND</span>
         </div>
       </div>
       
@@ -104,15 +115,24 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           hasHistory={false}
         />
       </div>
-      {/* Footer with Azerbaijan colors */}
-      <div className="w-full mt-8">
-        <div className="h-1 bg-gradient-to-r from-[#00b5e2] via-[#ef3340] to-[#00af50] rounded-full shadow-lg mb-4"></div>
-        <p className="text-xs text-neutral-400 font-medium">
-          🏛️ Azərbaycan Respublikası Prezidentinin Administrasiyası
-        </p>
-        <p className="text-xs text-neutral-500 mt-1">
-          Advanced AI Technology · 66 Languages · Real-time Analysis · 24/7 Monitoring
-        </p>
+      {/* Presidential Footer */}
+      <div className="w-full mt-10">
+        <div className="h-2 gold-shimmer rounded-full shadow-2xl mb-2"></div>
+        <div className="h-4 presidential-gradient rounded-full shadow-2xl mb-6"></div>
+        <div className="bg-gradient-to-r from-[#00b5e2]/20 via-[#ffd700]/30 to-[#00af50]/20 rounded-2xl p-6 gold-border">
+          <p className="text-xl font-bold text-[#ffd700] mb-2">
+            🏛️ AZƏRBAYCAN RESPUBLİKASI PREZİDENTİNİN ADMİNİSTRASİYASI
+          </p>
+          <div className="flex justify-center gap-4 text-sm font-semibold">
+            <span className="text-[#00b5e2]">Advanced AI Technology</span>
+            <span className="text-[#ffd700]">·</span>
+            <span className="text-[#ef3340]">66 Languages</span>
+            <span className="text-[#ffd700]">·</span>
+            <span className="text-[#00af50]">Real-time Analysis</span>
+            <span className="text-[#ffd700]">·</span>
+            <span className="text-[#00b5e2]">24/7 Monitoring</span>
+          </div>
+        </div>
       </div>
     </div>
   );

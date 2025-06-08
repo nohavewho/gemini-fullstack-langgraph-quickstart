@@ -13,18 +13,21 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(to bottom, var(--azerbaijan-blue), var(--azerbaijan-green));
   border-radius: 10px;
+  opacity: 0.2;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 181, 226, 0.3);
+  background: var(--azerbaijan-gold);
   border-radius: 10px;
-  transition: background 0.3s;
+  transition: all 0.3s;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 181, 226, 0.5);
+  background: linear-gradient(to bottom, var(--azerbaijan-gold), var(--azerbaijan-red));
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
 }
 
 /* Smooth transitions */
@@ -90,77 +93,85 @@ html {
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
   
-  /* Azerbaijan National Colors */
+  /* Azerbaijan National Colors - Presidential Theme */
   --azerbaijan-blue: #00b5e2;
   --azerbaijan-red: #ef3340;
   --azerbaijan-green: #00af50;
   --azerbaijan-gold: #ffd700;
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --azerbaijan-dark-blue: #005a7a;
+  --azerbaijan-dark-red: #a01d2a;
+  --azerbaijan-dark-green: #005228;
+  --azerbaijan-cream: #faf6f0;
+  --azerbaijan-royal-blue: #003d5c;
+  
+  /* Presidential Theme Colors */
+  --background: var(--azerbaijan-cream);
+  --foreground: var(--azerbaijan-royal-blue);
+  --card: #ffffff;
+  --card-foreground: var(--azerbaijan-dark-blue);
+  --popover: #ffffff;
+  --popover-foreground: var(--azerbaijan-dark-blue);
+  --primary: var(--azerbaijan-blue);
+  --primary-foreground: #ffffff;
+  --secondary: var(--azerbaijan-red);
+  --secondary-foreground: #ffffff;
+  --muted: #f5f0e8;
+  --muted-foreground: var(--azerbaijan-dark-blue);
+  --accent: var(--azerbaijan-green);
+  --accent-foreground: #ffffff;
+  --destructive: var(--azerbaijan-red);
+  --border: var(--azerbaijan-gold);
+  --input: rgba(0, 181, 226, 0.1);
+  --ring: var(--azerbaijan-gold);
+  --chart-1: var(--azerbaijan-blue);
+  --chart-2: var(--azerbaijan-red);
+  --chart-3: var(--azerbaijan-green);
+  --chart-4: var(--azerbaijan-gold);
+  --chart-5: var(--azerbaijan-dark-blue);
+  --sidebar: var(--azerbaijan-dark-blue);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--azerbaijan-gold);
+  --sidebar-primary-foreground: var(--azerbaijan-dark-blue);
+  --sidebar-accent: var(--azerbaijan-blue);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--azerbaijan-gold);
+  --sidebar-ring: var(--azerbaijan-gold);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Presidential Dark Theme */
+  --background: var(--azerbaijan-royal-blue);
+  --foreground: var(--azerbaijan-gold);
+  --card: var(--azerbaijan-dark-blue);
+  --card-foreground: var(--azerbaijan-gold);
+  --popover: var(--azerbaijan-dark-blue);
+  --popover-foreground: var(--azerbaijan-gold);
+  --primary: var(--azerbaijan-gold);
+  --primary-foreground: var(--azerbaijan-royal-blue);
+  --secondary: var(--azerbaijan-red);
+  --secondary-foreground: #ffffff;
+  --muted: rgba(255, 215, 0, 0.1);
+  --muted-foreground: var(--azerbaijan-gold);
+  --accent: var(--azerbaijan-green);
+  --accent-foreground: #ffffff;
+  --destructive: var(--azerbaijan-red);
+  --border: var(--azerbaijan-gold);
+  --input: rgba(255, 215, 0, 0.15);
+  --ring: var(--azerbaijan-gold);
+  --chart-1: var(--azerbaijan-blue);
+  --chart-2: var(--azerbaijan-red);
+  --chart-3: var(--azerbaijan-green);
+  --chart-4: var(--azerbaijan-gold);
+  --chart-5: #ffffff;
+  --sidebar: var(--azerbaijan-dark-blue);
+  --sidebar-foreground: var(--azerbaijan-gold);
+  --sidebar-primary: var(--azerbaijan-gold);
+  --sidebar-primary-foreground: var(--azerbaijan-dark-blue);
+  --sidebar-accent: var(--azerbaijan-green);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--azerbaijan-gold);
+  --sidebar-ring: var(--azerbaijan-gold);
 }
 
 @layer base {
@@ -203,5 +214,54 @@ html {
   animation: fadeInUpSmooth 0.3s ease-out forwards;
 }
 
-/* Ensure your body or html has a dark background if not already set, e.g.: */
-/* body { background-color: #0c0c0d; } */ /* This is similar to neutral-950 */
+/* Presidential Palace Theme Additions */
+.presidential-gradient {
+  background: linear-gradient(135deg, var(--azerbaijan-blue) 0%, var(--azerbaijan-red) 50%, var(--azerbaijan-green) 100%);
+}
+
+.gold-shimmer {
+  background: linear-gradient(90deg, var(--azerbaijan-gold) 0%, #fff59d 50%, var(--azerbaijan-gold) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.royal-shadow {
+  box-shadow: 0 10px 40px rgba(0, 181, 226, 0.3), 0 5px 20px rgba(239, 51, 64, 0.2);
+}
+
+.gold-border {
+  border: 2px solid var(--azerbaijan-gold);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+/* Luxurious Text Effects */
+.text-royal-gradient {
+  background: linear-gradient(135deg, var(--azerbaijan-blue), var(--azerbaijan-green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gold-gradient {
+  background: linear-gradient(90deg, var(--azerbaijan-gold), #fff59d, var(--azerbaijan-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Presidential Card Styles */
+.presidential-card {
+  background: linear-gradient(135deg, rgba(0, 181, 226, 0.1) 0%, rgba(239, 51, 64, 0.1) 50%, rgba(0, 175, 80, 0.1) 100%);
+  border: 2px solid var(--azerbaijan-gold);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.2), inset 0 0 20px rgba(255, 215, 0, 0.1);
+}
+
+/* Ensure dark mode uses rich colors */
+.dark body {
+  background: linear-gradient(135deg, var(--azerbaijan-royal-blue) 0%, var(--azerbaijan-dark-blue) 50%, #001a2e 100%);
+}
