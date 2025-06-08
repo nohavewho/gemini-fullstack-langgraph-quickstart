@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CountrySelector } from "./CountrySelector";
 
 // Updated InputFormProps
 interface InputFormProps {
@@ -27,6 +28,8 @@ export const InputForm: React.FC<InputFormProps> = ({
   const [internalInputValue, setInternalInputValue] = useState("");
   const [effort, setEffort] = useState("medium");
   const [model, setModel] = useState("gemini-2.5-flash-preview-04-17");
+  const [selectedCountries, setSelectedCountries] = useState<string[]>(["AZ"]);
+  const [preset, setPreset] = useState("azerbaijan_focus");
 
   const handleInternalSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -96,6 +99,19 @@ export const InputForm: React.FC<InputFormProps> = ({
         </div>
         </div>
       </div>
+      
+      {/* Country Selector */}
+      <div className="bg-gradient-to-r from-[#003d5c] to-[#005a7a] border-2 border-[#ffd700]/50 rounded-xl p-4 mb-3">
+        <CountrySelector
+          selectedCountries={selectedCountries}
+          onCountriesChange={setSelectedCountries}
+          preset={preset}
+          onPresetChange={setPreset}
+          maxCountries={5}
+          placeholder="Select countries to monitor..."
+        />
+      </div>
+      
       <div className="flex items-center justify-between">
         <div className="flex flex-row gap-2">
           <div className="flex flex-row gap-2 bg-gradient-to-r from-[#00b5e2] to-[#00af50] border-2 border-[#ffd700] text-white focus:ring-[#ffd700] rounded-xl rounded-t-sm pl-3 max-w-[100%] sm:max-w-[90%] shadow-lg">
