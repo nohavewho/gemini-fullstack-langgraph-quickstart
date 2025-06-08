@@ -8,6 +8,7 @@ from langgraph.graph import add_messages
 from typing_extensions import Annotated
 
 import operator
+from .countries_config import QueryType
 
 
 class OverallState(TypedDict):
@@ -25,6 +26,12 @@ class OverallState(TypedDict):
     press_monitor_params: Optional[Dict[str, Any]]  # Parameters for press monitoring
     press_monitoring_results: Optional[Dict[str, Any]]  # Results from press monitoring
     continue_to_research: Optional[bool]  # Whether to continue to deep research
+    
+    # Multi-country support
+    target_countries: Optional[List[str]]  # ISO country codes to monitor
+    source_countries: Optional[List[str]]  # Countries to search news from
+    query_type: Optional[str]  # 'about', 'in', or 'cross_reference'
+    preset: Optional[str]  # Preset configuration name
 
 
 class ReflectionState(TypedDict):
@@ -73,6 +80,8 @@ class ArticleInfo(TypedDict):
     key_phrases: List[str]
     mentions_context: List[Dict[str, str]]  # {"text": "...", "context": "economic/political/cultural"}
     topics: List[str]
+    countries_mentioned: List[str]  # Which target countries are mentioned
+    country_sentiments: Dict[str, float]  # Per-country sentiment scores
 
 
 class LanguageSearchState(TypedDict):
@@ -102,11 +111,18 @@ class OrchestratorState(TypedDict):
     translation_enabled: Optional[bool]
     max_articles_per_language: Optional[int]
     executive_summary: Optional[str]
+    
+    # Multi-country support
+    target_countries: List[str]  # ISO country codes to monitor
+    source_countries: Optional[List[str]]  # Countries to search news from
+    query_type: str  # 'about', 'in', or 'cross_reference'
+    preset: Optional[str]  # Preset configuration name
+    country_specific_digests: Dict[str, str]  # Per-country digests
 
 
 class TemporalAnalyticsState(TypedDict):
     """State for temporal analysis"""
-    country: Optional[str]
+    countries: List[str]  # Multiple countries to analyze
     region: Optional[str]
     time_periods: List[int]  # [7, 30, 90] days
     sentiment_trends: Dict[str, Dict[str, float]]  # period -> trends
@@ -114,6 +130,7 @@ class TemporalAnalyticsState(TypedDict):
     trend_predictions: Dict[str, str]
     significant_events: List[Dict[str, Any]]
     comparison_data: Dict[str, Any]
+    country_comparisons: Dict[str, Dict[str, Any]]  # Compare countries
 
 
 class PressMonitorOverallState(TypedDict):
@@ -130,3 +147,9 @@ class PressMonitorOverallState(TypedDict):
     sentiment_threshold: float  # threshold for positive/negative
     max_articles_per_language: int
     translation_enabled: bool
+    
+    # Multi-country configuration
+    target_countries: List[str]  # ISO country codes to monitor
+    source_countries: Optional[List[str]]  # Countries to search news from
+    query_type: str  # 'about', 'in', or 'cross_reference'
+    preset: Optional[str]  # Preset configuration name
