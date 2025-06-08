@@ -54,10 +54,10 @@ export const InputForm: React.FC<InputFormProps> = ({
       <div
         className={`flex flex-row items-center justify-between text-white rounded-3xl rounded-bl-sm ${
           hasHistory ? "rounded-br-sm" : ""
-        } break-words min-h-7 bg-gradient-to-r from-[#003d5c] to-[#005a7a] px-5 pt-4 shadow-xl border-2 border-[#ffd700]/50 relative overflow-hidden`}
+        } break-words min-h-[80px] bg-gradient-to-r from-[#003d5c] to-[#005a7a] px-5 py-4 shadow-xl border-2 border-[#ffd700]/50 relative overflow-hidden`}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-[#ffd700]/5 via-transparent to-[#ffd700]/5"></div>
-        <div className="relative z-10 flex-1 flex items-center">
+        <div className="relative z-10 flex-1 flex items-center gap-3">
         <Textarea
           value={internalInputValue}
           onChange={(e) => setInternalInputValue(e.target.value)}
@@ -67,7 +67,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                         md:text-base min-h-[56px] max-h-[200px] font-medium`}
           rows={1}
         />
-        <div className="-mt-3">
+        <div className="flex-shrink-0">
           {isLoading ? (
             <Button
               type="button"
@@ -81,12 +81,12 @@ export const InputForm: React.FC<InputFormProps> = ({
           ) : (
             <Button
               type="submit"
-              variant="ghost"
+              variant="default"
               className={`${
                 isSubmitDisabled
-                  ? "text-[#ffd700]/30"
-                  : "text-[#ffd700] hover:text-[#fff59d] hover:bg-[#ffd700]/20"
-              } p-3 cursor-pointer rounded-full transition-all duration-200 text-base font-bold hover:scale-110 hover:shadow-lg hover:shadow-[#ffd700]/30`}
+                  ? "bg-gray-400 border-gray-400 cursor-not-allowed opacity-50"
+                  : "bg-gradient-to-r from-[#ffd700] to-[#fff59d] hover:from-[#fff59d] hover:to-[#ffd700] text-[#003d5c] border-2 border-[#ffd700] hover:border-[#fff59d]"
+              } px-6 py-3 rounded-full transition-all duration-200 text-lg font-bold hover:scale-110 hover:shadow-2xl hover:shadow-[#ffd700]/50 shadow-lg`}
               disabled={isSubmitDisabled}
             >
               Search

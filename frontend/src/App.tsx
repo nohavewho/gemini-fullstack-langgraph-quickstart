@@ -48,7 +48,7 @@ export default function App() {
 
       // First try streaming endpoint
       try {
-        const response = await fetch("http://localhost:2024/api/research/stream", {
+        const response = await fetch("/api/research/stream", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -155,7 +155,7 @@ export default function App() {
       } catch (streamError) {
         // Fallback to non-streaming endpoint
         console.log('Streaming failed, falling back to regular endpoint');
-        const response = await fetch("http://localhost:2024/api/research", {
+        const response = await fetch("/api/research", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -213,26 +213,26 @@ export default function App() {
       <div className="absolute top-0 left-0 w-96 h-96 bg-[#ffd700]/5 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#00b5e2]/5 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-[#ffd700]/5 via-transparent to-[#ffd700]/5 rounded-full blur-3xl animate-pulse"></div>
-      <main className="flex-1 flex flex-col overflow-hidden max-w-5xl mx-auto w-full relative z-10">
-        <div className={`flex-1 overflow-y-auto ${messages.length === 0 ? "flex" : ""}`}>
-          {messages.length === 0 ? (
+      <main className="flex-1 flex flex-col max-w-5xl mx-auto w-full relative z-10 h-screen">
+        {messages.length === 0 ? (
+          <div className="flex-1 flex">
             <WelcomeScreen
               handleSubmit={handleSubmit}
               isLoading={isLoading}
               onCancel={handleCancel}
             />
-          ) : (
-            <ChatMessagesView
-              messages={messages}
-              isLoading={isLoading}
-              scrollAreaRef={scrollAreaRef}
-              onSubmit={handleSubmit}
-              onCancel={handleCancel}
-              liveActivityEvents={processedEventsTimeline}
-              historicalActivities={historicalActivities}
-            />
-          )}
-        </div>
+          </div>
+        ) : (
+          <ChatMessagesView
+            messages={messages}
+            isLoading={isLoading}
+            scrollAreaRef={scrollAreaRef}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            liveActivityEvents={processedEventsTimeline}
+            historicalActivities={historicalActivities}
+          />
+        )}
       </main>
     </div>
   );

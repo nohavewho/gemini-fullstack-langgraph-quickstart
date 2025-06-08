@@ -1,13 +1,11 @@
 import type React from "react";
 import type { Message } from "@langchain/langgraph-sdk";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Copy, CopyCheck, Bot } from "lucide-react";
 import { InputForm } from "@/components/InputForm";
 import { Button } from "@/components/ui/button";
 import { useState, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import {
   ActivityTimeline,
   ProcessedEvent,
@@ -43,17 +41,15 @@ const mdComponents = {
     </p>
   ),
   a: ({ className, children, href, ...props }: MdComponentProps) => (
-    <Badge className="text-xs mx-0.5">
-      <a
-        className={cn("text-blue-400 hover:text-blue-300 text-xs", className)}
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        {...props}
-      >
-        {children}
-      </a>
-    </Badge>
+    <a
+      className={cn("text-[#ffd700] hover:text-[#fff59d] underline decoration-[#ffd700]/50 font-medium inline-block mx-1", className)}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      {...props}
+    >
+      {children}
+    </a>
   ),
   ul: ({ className, children, ...props }: MdComponentProps) => (
     <ul className={cn("list-disc pl-6 mb-3", className)} {...props}>
@@ -273,8 +269,8 @@ export function ChatMessagesView({
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="p-4 md:p-6 space-y-2 max-w-4xl mx-auto pt-16">
+      <div className="flex-grow overflow-y-auto" ref={scrollAreaRef}>
+        <div className="p-4 md:p-6 space-y-2 max-w-4xl mx-auto pt-4 pb-4">
           {messages.map((message, index) => {
             const isLast = index === messages.length - 1;
             return (
@@ -336,7 +332,7 @@ export function ChatMessagesView({
               </div>
             )}
         </div>
-      </ScrollArea>
+      </div>
       <InputForm
         onSubmit={onSubmit}
         isLoading={isLoading}

@@ -18,6 +18,7 @@ from .utils import clean_url
 AZERBAIJAN_TRANSLATIONS = {
     "en": ["Azerbaijan", "Azerbaijani", "Azeri", "Baku"],
     "ru": ["Азербайджан", "азербайджанский", "азербайджанец", "Баку"],
+    "uk": ["Азербайджан", "азербайджанський", "азербайджанець", "Баку"],
     "tr": ["Azerbaycan", "Azeri", "Azerbaycanlı", "Bakü"],
     "ar": ["أذربيجان", "أذربيجاني", "باكو"],
     "zh": ["阿塞拜疆", "阿塞拜疆人", "巴库"],
@@ -93,16 +94,14 @@ async def create_language_search_queries(
 ) -> List[str]:
     """Create search queries using local language terms"""
     
-    azerbaijan_terms = AZERBAIJAN_TRANSLATIONS.get(language_code, ["Azerbaijan"])
-    
-    # Use the MULTI_LANGUAGE_SEARCH_PROMPT to generate queries
+    # Let AI determine the translation itself!
     from .press_prompts import MULTI_LANGUAGE_SEARCH_PROMPT
     from datetime import datetime
     
     prompt = MULTI_LANGUAGE_SEARCH_PROMPT.format(
         language_name=language_name,
         language_code=language_code,
-        azerbaijan_terms=", ".join(azerbaijan_terms),
+        azerbaijan_terms="",  # Empty! Let AI figure it out!
         current_date=datetime.now().strftime("%B %d, %Y")
     )
     

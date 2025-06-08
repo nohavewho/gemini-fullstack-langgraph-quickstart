@@ -1,20 +1,15 @@
 """Prompts for Press Monitor agents"""
 
-MULTI_LANGUAGE_SEARCH_PROMPT = """Generate search queries in {language_name} for Azerbaijan mentions.
+MULTI_LANGUAGE_SEARCH_PROMPT = """Generate search queries in {language_name} for Azerbaijan.
 
-Azerbaijan in {language_name}: {azerbaijan_terms}
+YOU MUST:
+1. Translate "Azerbaijan" to {language_name} YOURSELF
+2. Use ONLY {language_name} for ALL search terms
+3. Create natural queries a local would use
+
 Date: {current_date}
 
-Create 3-5 queries to find:
-- Opinion/editorial content
-- Expert analysis
-- Investigations
-- Human rights reports
-- Economic assessments
-
-Exclude PR materials with -"press release" -"official statement"
-
-Output one query per line."""
+Output 3-5 queries, one per line."""
 
 
 ARTICLE_EXTRACTION_PROMPT = """Extract Azerbaijan mentions from:

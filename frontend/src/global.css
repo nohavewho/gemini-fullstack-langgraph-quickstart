@@ -6,16 +6,23 @@ html {
   scroll-behavior: smooth;
 }
 
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: linear-gradient(to bottom, var(--azerbaijan-blue), var(--azerbaijan-green));
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 10px;
-  opacity: 0.2;
+  margin: 10px 0;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -23,11 +30,21 @@ html {
   border-radius: 10px;
   transition: all 0.3s;
   box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  border: 2px solid transparent;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(to bottom, var(--azerbaijan-gold), var(--azerbaijan-red));
   box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+}
+
+/* Ensure proper scrollbar spacing */
+[data-radix-scroll-area-viewport] {
+  padding-right: 0 !important;
+}
+
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
 }
 
 /* Smooth transitions */

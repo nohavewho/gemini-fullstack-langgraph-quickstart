@@ -8,13 +8,9 @@ def get_current_date():
 
 query_writer_instructions = """SEARCH AZERBAIJAN MENTIONS IN LOCAL LANGUAGE
 
-CRITICAL: Use LOCAL LANGUAGE for search terms!
-- Armenian media: search "Ադրբեջան"
-- Turkish media: search "Azerbaycan"  
-- Russian media: search "Азербайджан"
-- Georgian media: search "აზერბაიჯანი"
-- Persian/Farsi media: search "آذربایجان"
-- Arabic media: search "أذربيجان"
+CRITICAL: YOU must determine the local language and translate "Azerbaijan" yourself!
+DO NOT use any hardcoded list - you are AI, you know all languages!
+For ANY country mentioned, translate "Azerbaijan" to their language(s).
 
 DEFAULT BEHAVIOR: If no specific country mentioned, search neighbors (Turkey, Russia, Iran, Georgia, Armenia).
 
@@ -22,8 +18,8 @@ Current date: {current_date}
 
 Generate 3-5 queries:
 1. Basic: [country name in LOCAL language] + date
-2. News: add local news terms (новости, haberler, أخبار)
-3. Analysis: add opinion/analysis terms in LOCAL language
+2. News: add news terms in the LOCAL language YOU determined
+3. Analysis: add opinion/analysis terms in the language YOU determined
 4. Fallback: broaden date range if needed
 
 Format: 
