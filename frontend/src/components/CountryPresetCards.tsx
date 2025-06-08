@@ -1,10 +1,11 @@
 import React from 'react';
+import { useTranslation } from '../contexts/LanguageContext';
 
-const PRESET_CARDS = [
+const getPresetCards = (t: (key: string) => string) => [
   {
     id: "azerbaijan_focus",
-    title: "Соседние страны",
-    subtitle: "Турция, Россия, Иран, Грузия",
+    title: t('neighboring_countries'),
+    subtitle: t('neighboring_desc'),
     icon: "🏛️",
     bgColor: "from-red-100 to-red-200",
     borderColor: "border-red-300",
@@ -13,8 +14,8 @@ const PRESET_CARDS = [
   },
   {
     id: "european_press",
-    title: "Европейская пресса",
-    subtitle: "Официальная позиция стран ЕС",
+    title: t('european_press'),
+    subtitle: t('european_desc'),
     icon: "🇪🇺",
     bgColor: "from-blue-100 to-blue-200", 
     borderColor: "border-blue-300",
@@ -23,8 +24,8 @@ const PRESET_CARDS = [
   },
   {
     id: "usa_media",
-    title: "СМИ США",
-    subtitle: "Официальная пресса Америки",
+    title: t('usa_media'),
+    subtitle: t('usa_desc'),
     icon: "🇺🇸",
     bgColor: "from-green-100 to-green-200",
     borderColor: "border-green-300", 
@@ -33,8 +34,8 @@ const PRESET_CARDS = [
   },
   {
     id: "arabic_world",
-    title: "Арабский мир",
-    subtitle: "Пресса арабских стран",
+    title: t('arabic_world'),
+    subtitle: t('arabic_desc'),
     icon: "🕌",
     bgColor: "from-yellow-100 to-yellow-200",
     borderColor: "border-yellow-300",
@@ -43,8 +44,8 @@ const PRESET_CARDS = [
   },
   {
     id: "energy_sector",
-    title: "Энергетический сектор",
-    subtitle: "В нефтегазовом секторе",
+    title: t('energy_sector'),
+    subtitle: t('energy_desc'),
     icon: "⚡",
     bgColor: "from-purple-100 to-purple-200",
     borderColor: "border-purple-300",
@@ -53,8 +54,8 @@ const PRESET_CARDS = [
   },
   {
     id: "global_media",
-    title: "Мировые СМИ",
-    subtitle: "Обзор международной прессы",
+    title: t('global_media'),
+    subtitle: t('global_desc'),
     icon: "🌍",
     bgColor: "from-indigo-100 to-indigo-200",
     borderColor: "border-indigo-300",
@@ -63,8 +64,8 @@ const PRESET_CARDS = [
   },
   {
     id: "asian_markets",
-    title: "Азиатские рынки",
-    subtitle: "Китай, Япония, Индия",
+    title: t('asian_markets'),
+    subtitle: t('asian_desc'),
     icon: "🏮",
     bgColor: "from-orange-100 to-orange-200", 
     borderColor: "border-orange-300",
@@ -73,8 +74,8 @@ const PRESET_CARDS = [
   },
   {
     id: "custom_analysis",
-    title: "Произвольный анализ",
-    subtitle: "Напишите свой запрос",
+    title: t('custom_analysis'),
+    subtitle: t('custom_desc'),
     icon: "✏️",
     bgColor: "from-gray-100 to-gray-200",
     borderColor: "border-gray-300", 
@@ -89,14 +90,17 @@ interface CountryPresetCardsProps {
 }
 
 export function CountryPresetCards({ selectedPreset, onPresetSelect }: CountryPresetCardsProps) {
+  const { t } = useTranslation();
+  const presetCards = getPresetCards(t);
+  
   return (
     <div className="w-full max-w-4xl mx-auto mb-8">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Быстрые шаблоны</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">{t('quick_templates')}</h2>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {PRESET_CARDS.map((card) => (
+        {presetCards.map((card) => (
           <div
             key={card.id}
             onClick={() => onPresetSelect(card.id, card.countries)}

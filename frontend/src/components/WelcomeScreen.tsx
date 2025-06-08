@@ -1,6 +1,7 @@
 import { InputForm } from "./InputForm";
 import { CountryPresetCards } from "./CountryPresetCards";
 import { useState } from "react";
+import { useTranslation } from "../contexts/LanguageContext";
 
 interface WelcomeScreenProps {
   handleSubmit: (
@@ -18,18 +19,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   isLoading,
 }) => {
   const [selectedPreset, setSelectedPreset] = useState("azerbaijan_focus");
+  const { t } = useTranslation();
   
   const handlePresetSelect = (presetId: string, countries: string[]) => {
     setSelectedPreset(presetId);
     // Generate query based on preset
     const presetQueries = {
-      azerbaijan_focus: "Анализ прессы об Азербайджане в соседних странах",
-      european_press: "Анализ европейской прессы об Азербайджане",
-      usa_media: "Анализ американских СМИ об Азербайджане", 
-      arabic_world: "Анализ арабской прессы об Азербайджане",
-      energy_sector: "Азербайджан в энергетических СМИ",
-      global_media: "Азербайджан в мировой прессе",
-      asian_markets: "Азербайджан в азиатских СМИ",
+      azerbaijan_focus: t('query_neighboring'),
+      european_press: t('query_european'),
+      usa_media: t('query_usa'), 
+      arabic_world: t('query_arabic'),
+      energy_sector: t('query_energy'),
+      global_media: t('query_global'),
+      asian_markets: t('query_asian'),
       custom_analysis: ""
     };
     
@@ -57,17 +59,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           AZƏRBAYCAN
         </h1>
         <h2 className="text-2xl md:text-3xl font-bold text-royal-gradient mb-2">
-          Prezident Mətbuat Monitorinqi
+          {t('monitor_title')}
         </h2>
         <div className="flex items-center justify-center gap-2 mb-1">
           <div className="h-0.5 w-12 gold-shimmer rounded-full"></div>
           <p className="text-lg md:text-xl font-bold text-[#ffd700] tracking-wide">
-            Presidential Press Monitor
+            {t('monitor_title')}
           </p>
           <div className="h-0.5 w-12 gold-shimmer rounded-full"></div>
         </div>
         <p className="text-sm text-[#00b5e2] font-semibold mt-1">
-          Global Media Intelligence System
+          {t('subtitle')}
         </p>
       </div>
       
@@ -82,7 +84,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="w-full h-0.5 presidential-gradient opacity-50"></div>
         </div>
         <div className="relative flex justify-center">
-          <span className="bg-gradient-to-r from-[#00b5e2] to-[#00af50] px-6 py-2 text-white font-bold rounded-full shadow-xl text-lg">CUSTOM COMMAND</span>
+          <span className="bg-gradient-to-r from-[#00b5e2] to-[#00af50] px-6 py-2 text-white font-bold rounded-full shadow-xl text-lg">{t('custom_command')}</span>
         </div>
       </div>
       
@@ -103,9 +105,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             🏛️ AZƏRBAYCAN RESPUBLİKASI PREZİDENTİNİN ADMİNİSTRASİYASI
           </p>
           <div className="flex justify-center gap-4 text-sm font-semibold flex-wrap">
-            <span className="text-[#00b5e2]">Advanced AI Technology</span>
+            <span className="text-[#00b5e2]">{t('advanced_ai')}</span>
             <span className="text-[#ffd700]">·</span>
-            <span className="text-[#ef3340]">66 Languages</span>
+            <span className="text-[#ef3340]">{t('languages_count')}</span>
             <span className="text-[#ffd700]">·</span>
             <span className="text-[#00af50]">Real-time Analysis</span>
             <span className="text-[#ffd700]">·</span>

@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SimpleCountrySelector } from "./SimpleCountrySelector";
+import { useTranslation } from "../contexts/LanguageContext";
 
 // Updated InputFormProps
 interface InputFormProps {
@@ -25,6 +26,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   isLoading,
   hasHistory,
 }) => {
+  const { t } = useTranslation();
   const [internalInputValue, setInternalInputValue] = useState("");
   const [effort, setEffort] = useState("medium");
   const [model, setModel] = useState("gemini-2.5-flash-preview-04-17");
@@ -65,7 +67,7 @@ export const InputForm: React.FC<InputFormProps> = ({
           value={internalInputValue}
           onChange={(e) => setInternalInputValue(e.target.value)}
           onKeyDown={handleInternalKeyDown}
-          placeholder="Анализ прессы об Азербайджане в Турции за последние 3 дня"
+          placeholder={t('placeholder')}
           className={`w-full text-[#ffd700] placeholder-[#ffd700]/50 resize-none border-0 focus:outline-none focus:ring-0 outline-none focus-visible:ring-0 shadow-none bg-transparent
                         md:text-base min-h-[56px] max-h-[200px] font-medium`}
           rows={1}
@@ -106,7 +108,7 @@ export const InputForm: React.FC<InputFormProps> = ({
           <div className="flex flex-row gap-2 bg-gradient-to-r from-[#00b5e2] to-[#00af50] border-2 border-[#ffd700] text-white focus:ring-[#ffd700] rounded-xl rounded-t-sm pl-3 max-w-[100%] sm:max-w-[90%] shadow-lg">
             <div className="flex flex-row items-center text-sm">
               <Brain className="h-5 w-5 mr-2 text-[#ffd700]" />
-              Effort
+{t('effort')}
             </div>
             <Select value={effort} onValueChange={setEffort}>
               <SelectTrigger className="w-[120px] bg-transparent border-none cursor-pointer">
