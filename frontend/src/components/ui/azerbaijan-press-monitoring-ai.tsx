@@ -1,65 +1,35 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
-  Search,
-  Mic,
-  ArrowUp,
-  Plus,
-  FileText,
-  Code,
-  BookOpen,
-  PenTool,
-  BrainCircuit,
   Sparkles,
   Globe,
   Paperclip,
   Send,
-  MessageSquare,
-  History,
-  Settings,
-  MoreHorizontal,
-  Check,
-  CheckCheck,
-  SmilePlus,
-  Languages,
   TrendingUp,
-  Filter,
-  Calendar,
-  Download,
-  Share2,
-  Eye,
-  Clock,
   User,
   Bot,
   Zap,
   Target,
   BarChart3,
-  Map,
   Flag,
   Newspaper,
-  X,
   ChevronDown,
   MicIcon,
   PieChart,
   LineChart,
-  Activity
+  Code
 } from "lucide-react";
-import { motion, AnimatePresence, animate } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Simplified components for missing shadcn components
-const Separator = ({ className }: { className?: string }) => (
-  <div className={cn("h-px bg-border", className)} />
-);
-
 const Avatar = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <div className={cn("flex items-center justify-center rounded-full", className)}>
     {children}
@@ -85,20 +55,17 @@ const Checkbox = ({
 );
 
 const Popover = ({ 
-  children, 
-  open, 
-  onOpenChange 
+  children
 }: { 
   children: React.ReactNode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) => (
   <div className="relative">{children}</div>
 );
 
 const PopoverTrigger = ({ 
-  children, 
-  asChild 
+  children
 }: { 
   children: React.ReactNode;
   asChild?: boolean;
@@ -115,44 +82,6 @@ const PopoverContent = ({
     {children}
   </div>
 );
-
-const Command = ({ children }: { children: React.ReactNode }) => (
-  <div className="bg-background">{children}</div>
-);
-
-const CommandInput = (props: any) => <input {...props} className="border rounded px-2 py-1" />;
-const CommandEmpty = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
-const CommandGroup = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
-const CommandItem = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
-
-// Animated Text Hook
-function useAnimatedText(text: string, delimiter: string = "") {
-  const [cursor, setCursor] = useState(0);
-  const [startingCursor, setStartingCursor] = useState(0);
-  const [prevText, setPrevText] = useState(text);
-
-  if (prevText !== text) {
-    setPrevText(text);
-    setStartingCursor(text.startsWith(prevText) ? cursor : 0);
-  }
-
-  useEffect(() => {
-    const parts = text.split(delimiter);
-    const duration = delimiter === "" ? 8 : delimiter === " " ? 4 : 2;
-    
-    const controls = animate(startingCursor, parts.length, {
-      duration,
-      ease: "easeOut",
-      onUpdate(latest) {
-        setCursor(Math.floor(latest));
-      },
-    });
-
-    return () => controls.stop();
-  }, [startingCursor, text, delimiter]);
-
-  return text.split(delimiter).slice(0, cursor).join(delimiter);
-}
 
 // Auto Resize Textarea Hook
 function useAutoResizeTextarea({ minHeight = 48, maxHeight = 200 }) {
@@ -193,14 +122,6 @@ interface Message {
     reasoning?: string[];
     searchQuery?: string;
   };
-}
-
-interface ChatSession {
-  id: string;
-  title: string;
-  timestamp: string;
-  language: string;
-  messageCount: number;
 }
 
 interface PresetQuery {
@@ -301,31 +222,6 @@ const PRESET_QUERIES: PresetQuery[] = [
   }
 ];
 
-// Sample Chat History
-const SAMPLE_CHAT_HISTORY: ChatSession[] = [
-  {
-    id: "1",
-    title: "Economic partnerships analysis",
-    timestamp: "2024-01-15T10:30:00Z",
-    language: "en",
-    messageCount: 12
-  },
-  {
-    id: "2",
-    title: "Enerji sektörü gelişmeleri",
-    timestamp: "2024-01-14T15:45:00Z",
-    language: "tr",
-    messageCount: 8
-  },
-  {
-    id: "3",
-    title: "Дипломатические отношения",
-    timestamp: "2024-01-13T09:20:00Z",
-    language: "ru",
-    messageCount: 15
-  }
-];
-
 // Main Component
 export function AzerbaijanPressMonitoringAI() {
   const [currentLanguage, setCurrentLanguage] = useState("en");
@@ -333,13 +229,7 @@ export function AzerbaijanPressMonitoringAI() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [searchEnabled, setSearchEnabled] = useState(true);
-  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
-  const [reasoningEnabled, setReasoningEnabled] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [chatHistory, setChatHistory] = useState<ChatSession[]>(SAMPLE_CHAT_HISTORY);
-  const [activeTab, setActiveTab] = useState("chat");
-  const [showReasoningProcess, setShowReasoningProcess] = useState(false);
   const [targetCountries, setTargetCountries] = useState<string[]>(["az"]);
   const [selectedCountries, setSelectedCountries] = useState<string[]>(["us", "ru", "tr", "de"]);
   const [targetCountriesOpen, setTargetCountriesOpen] = useState(false);
@@ -358,105 +248,45 @@ export function AzerbaijanPressMonitoringAI() {
         title: "Azerbaijan Press Monitoring AI",
         subtitle: "Monitor global press coverage about Azerbaijan",
         placeholder: "Ask about Azerbaijan's presence in international media...",
-        search: "Search",
-        deepResearch: "Deep Research",
-        reasoning: "Reasoning",
         presets: "Quick Presets",
-        history: "Chat History",
-        settings: "Settings",
-        send: "Send",
         typing: "AI is analyzing...",
-        noHistory: "No chat history yet",
         startNewChat: "Start a new conversation",
-        economy: "Economy",
-        energy: "Energy",
-        diplomacy: "Diplomacy",
-        culture: "Culture",
-        technology: "Technology",
-        security: "Security",
         targetCountry: "Target Country",
         pressCountries: "Press Countries",
-        selectCountries: "Select countries to monitor press",
-        recording: "Recording...",
-        stopRecording: "Stop recording"
+        recording: "Recording..."
       },
       az: {
         title: "Azərbaycan Mətbuat Monitorinqi AI",
         subtitle: "Azərbaycan haqqında qlobal mətbuat əhatəsini izləyin",
         placeholder: "Azərbaycanın beynəlxalq mediada əksi haqqında soruşun...",
-        search: "Axtarış",
-        deepResearch: "Dərin Tədqiqat",
-        reasoning: "Mülahizə",
         presets: "Sürətli Şablonlar",
-        history: "Söhbət Tarixçəsi",
-        settings: "Parametrlər",
-        send: "Göndər",
         typing: "AI təhlil edir...",
-        noHistory: "Hələ söhbət tarixçəsi yoxdur",
         startNewChat: "Yeni söhbət başladın",
-        economy: "İqtisadiyyat",
-        energy: "Enerji",
-        diplomacy: "Diplomatiya",
-        culture: "Mədəniyyət",
-        technology: "Texnologiya",
-        security: "Təhlükəsizlik",
         targetCountry: "Hədəf Ölkə",
         pressCountries: "Mətbuat Ölkələri",
-        selectCountries: "İzləmək üçün ölkələri seçin",
-        recording: "Qeyd edilir...",
-        stopRecording: "Qeydi dayandır"
+        recording: "Qeyd edilir..."
       },
       ru: {
         title: "ИИ мониторинга прессы Азербайджана",
         subtitle: "Отслеживайте освещение Азербайджана в мировой прессе",
         placeholder: "Спросите об освещении Азербайджана в международных СМИ...",
-        search: "Поиск",
-        deepResearch: "Глубокое исследование",
-        reasoning: "Рассуждение",
         presets: "Быстрые шаблоны",
-        history: "История чатов",
-        settings: "Настройки",
-        send: "Отправить",
         typing: "ИИ анализирует...",
-        noHistory: "Пока нет истории чатов",
         startNewChat: "Начать новый разговор",
-        economy: "Экономика",
-        energy: "Энергетика",
-        diplomacy: "Дипломатия",
-        culture: "Культура",
-        technology: "Технологии",
-        security: "Безопасность",
         targetCountry: "Целевая страна",
         pressCountries: "Страны прессы",
-        selectCountries: "Выберите страны для мониторинга",
-        recording: "Запись...",
-        stopRecording: "Остановить запись"
+        recording: "Запись..."
       },
       tr: {
         title: "Azerbaycan Basın Takip AI",
         subtitle: "Azerbaycan'ın küresel basındaki yer alışını izleyin",
         placeholder: "Azerbaycan'ın uluslararası medyadaki yansıması hakkında sorun...",
-        search: "Arama",
-        deepResearch: "Derin Araştırma",
-        reasoning: "Akıl Yürütme",
         presets: "Hızlı Şablonlar",
-        history: "Sohbet Geçmişi",
-        settings: "Ayarlar",
-        send: "Gönder",
         typing: "AI analiz ediyor...",
-        noHistory: "Henüz sohbet geçmişi yok",
         startNewChat: "Yeni sohbet başlat",
-        economy: "Ekonomi",
-        energy: "Enerji",
-        diplomacy: "Diplomasi",
-        culture: "Kültür",
-        technology: "Teknoloji",
-        security: "Güvenlik",
         targetCountry: "Hedef Ülke",
         pressCountries: "Basın Ülkeleri",
-        selectCountries: "İzlenecek ülkeleri seçin",
-        recording: "Kayıt ediliyor...",
-        stopRecording: "Kaydı durdur"
+        recording: "Kayıt ediliyor..."
       }
     };
     return translations[currentLanguage]?.[key] || key;
