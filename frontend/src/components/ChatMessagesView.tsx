@@ -147,7 +147,7 @@ const HumanMessageBubble: React.FC<HumanMessageBubbleProps> = ({
 }) => {
   return (
     <div
-      className={`text-white rounded-3xl break-words min-h-7 bg-neutral-700 max-w-[100%] sm:max-w-[90%] px-4 pt-3 rounded-br-lg`}
+      className={`text-white rounded-2xl break-words min-h-7 bg-gradient-to-br from-neutral-700 to-neutral-600 max-w-[100%] sm:max-w-[90%] px-5 py-4 rounded-br-lg shadow-lg border border-neutral-600`}
     >
       <ReactMarkdown components={mdComponents}>
         {typeof message.content === "string"

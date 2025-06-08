@@ -1,6 +1,6 @@
 import os
 
-from agent.tools_and_schemas import SearchQueryList, Reflection
+from .tools_and_schemas import SearchQueryList, Reflection
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage
 from langgraph.types import Send
@@ -9,14 +9,14 @@ from langgraph.graph import START, END
 from langchain_core.runnables import RunnableConfig
 from google.genai import Client
 
-from agent.state import (
+from .state import (
     OverallState,
     QueryGenerationState,
     ReflectionState,
     WebSearchState,
 )
-from agent.configuration import Configuration
-from agent.prompts import (
+from .configuration import Configuration
+from .prompts import (
     get_current_date,
     query_writer_instructions,
     web_searcher_instructions,
@@ -24,7 +24,7 @@ from agent.prompts import (
     answer_instructions,
 )
 from langchain_google_genai import ChatGoogleGenerativeAI
-from agent.utils import (
+from .utils import (
     get_citations,
     get_research_topic,
     insert_citation_markers,
@@ -121,12 +121,18 @@ def web_research(state: WebSearchState, config: RunnableConfig) -> OverallState:
         },
     )
     # resolve the urls to short urls for saving tokens and time
-    resolved_urls = resolve_urls(
-        response.candidates[0].grounding_metadata.grounding_chunks, state["id"]
-    )
+    grounding_chunks = None
+    if (response.candidates and len(response.candidates) > 0 and 
+        hasattr(response.candidates[0], 'grounding_metadata') and 
+        response.candidates[0].grounding_metadata and
+        hasattr(response.candidates[0].grounding_metadata, 'grounding_chunks')):
+        grounding_chunks = response.candidates[0].grounding_metadata.grounding_chunks
+    
+    resolved_urls = resolve_urls(grounding_chunks, state["id"])
+    
     # Gets the citations and adds them to the generated text
     citations = get_citations(response, resolved_urls)
-    modified_text = insert_citation_markers(response.text, citations)
+    modified_text = insert_citation_markers(response.text, citations) if response.text else ""
     sources_gathered = [item for citation in citations for item in citation["segments"]]
 
     return {

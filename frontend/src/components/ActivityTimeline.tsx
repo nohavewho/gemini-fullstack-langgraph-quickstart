@@ -15,6 +15,10 @@ import {
   Pen,
   ChevronDown,
   ChevronUp,
+  Globe,
+  Languages,
+  TrendingUp,
+  FileText,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -34,20 +38,42 @@ export function ActivityTimeline({
 }: ActivityTimelineProps) {
   const [isTimelineCollapsed, setIsTimelineCollapsed] =
     useState<boolean>(false);
-  const getEventIcon = (title: string, index: number) => {
+  const getEventIcon = (title: string | undefined, index: number) => {
     if (index === 0 && isLoading && processedEvents.length === 0) {
       return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
     }
-    if (title.toLowerCase().includes("generating")) {
+    
+    // Handle undefined or null title
+    if (!title) {
+      return <Activity className="h-4 w-4 text-neutral-400" />;
+    }
+    
+    const lowerTitle = title.toLowerCase();
+    
+    if (lowerTitle.includes("generating")) {
       return <TextSearch className="h-4 w-4 text-neutral-400" />;
-    } else if (title.toLowerCase().includes("thinking")) {
+    } else if (lowerTitle.includes("thinking")) {
       return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
-    } else if (title.toLowerCase().includes("reflection")) {
+    } else if (lowerTitle.includes("reflection")) {
       return <Brain className="h-4 w-4 text-neutral-400" />;
-    } else if (title.toLowerCase().includes("research")) {
+    } else if (lowerTitle.includes("research")) {
       return <Search className="h-4 w-4 text-neutral-400" />;
-    } else if (title.toLowerCase().includes("finalizing")) {
+    } else if (lowerTitle.includes("finalizing")) {
       return <Pen className="h-4 w-4 text-neutral-400" />;
+    } else if (lowerTitle.includes("press monitoring")) {
+      return <Globe className="h-4 w-4 text-blue-400" />;
+    } else if (lowerTitle.includes("language search")) {
+      return <Languages className="h-4 w-4 text-green-400" />;
+    } else if (lowerTitle.includes("sentiment analysis")) {
+      return <TrendingUp className="h-4 w-4 text-orange-400" />;
+    } else if (lowerTitle.includes("digest generation")) {
+      return <FileText className="h-4 w-4 text-purple-400" />;
+    } else if (lowerTitle.includes("searching")) {
+      return <Search className="h-4 w-4 text-neutral-400" />;
+    } else if (lowerTitle.includes("analyzing")) {
+      return <Brain className="h-4 w-4 text-neutral-400" />;
+    } else if (lowerTitle.includes("initializing")) {
+      return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
     }
     return <Activity className="h-4 w-4 text-neutral-400" />;
   };
@@ -59,14 +85,14 @@ export function ActivityTimeline({
   }, [isLoading, processedEvents]);
 
   return (
-    <Card className="border-none rounded-lg bg-neutral-700 max-h-96">
+    <Card className="border border-[#00b5e2]/30 rounded-lg bg-gradient-to-br from-neutral-800/90 to-neutral-700/90 max-h-96 shadow-lg">
       <CardHeader>
         <CardDescription className="flex items-center justify-between">
           <div
             className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100"
             onClick={() => setIsTimelineCollapsed(!isTimelineCollapsed)}
           >
-            Research
+            İcra Prosesi | Processing
             {isTimelineCollapsed ? (
               <ChevronDown className="h-4 w-4 mr-2" />
             ) : (
@@ -100,11 +126,11 @@ export function ActivityTimeline({
                       <div className="absolute left-3 top-3.5 h-full w-0.5 bg-neutral-600" />
                     ) : null}
                     <div className="absolute left-0.5 top-2 h-6 w-6 rounded-full bg-neutral-600 flex items-center justify-center ring-4 ring-neutral-700">
-                      {getEventIcon(eventItem.title, index)}
+                      {getEventIcon(eventItem.label || eventItem.title, index)}
                     </div>
                     <div>
                       <p className="text-sm text-neutral-200 font-medium mb-0.5">
-                        {eventItem.title}
+                        {eventItem.label || eventItem.title}
                       </p>
                       <p className="text-xs text-neutral-300 leading-relaxed">
                         {typeof eventItem.data === "string"

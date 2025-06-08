@@ -29,6 +29,13 @@ class Configuration(BaseModel):
         },
     )
 
+    reasoning_model: str = Field(
+        default="gemini-2.0-flash",
+        metadata={
+            "description": "The name of the language model to use for reasoning."
+        },
+    )
+
     number_of_initial_queries: int = Field(
         default=3,
         metadata={"description": "The number of initial search queries to generate."},

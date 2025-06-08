@@ -1,0 +1,9 @@
+tunnel: 3d150c6c-e32e-41c7-aeba-6e2bd115d258
+credentials-file: /Users/vladislaviushchenko/.cloudflared/3d150c6c-e32e-41c7-aeba-6e2bd115d258.json
+
+ingress:
+  - hostname: az.crmadw.store
+    service: http://localhost:8000
+    originRequest:
+      httpHostHeader: "localhost:8000"
+  - service: http_status:404

@@ -24,13 +24,25 @@ def resolve_urls(urls_to_resolve: List[Any], id: int) -> Dict[str, str]:
     Create a map of the vertex ai search urls (very long) to a short url with a unique id for each url.
     Ensures each original URL gets a consistent shortened form while maintaining uniqueness.
     """
+    # Handle None or empty input
+    if not urls_to_resolve:
+        return {}
+        
     prefix = f"https://vertexaisearch.cloud.google.com/id/"
-    urls = [site.web.uri for site in urls_to_resolve]
+    
+    # Safely extract URLs, handling potential missing attributes
+    urls = []
+    for site in urls_to_resolve:
+        try:
+            if hasattr(site, 'web') and hasattr(site.web, 'uri'):
+                urls.append(site.web.uri)
+        except AttributeError:
+            continue
 
     # Create a dictionary that maps each unique URL to its first occurrence index
     resolved_map = {}
     for idx, url in enumerate(urls):
-        if url not in resolved_map:
+        if url and url not in resolved_map:
             resolved_map[url] = f"{prefix}{id}-{idx}"
 
     return resolved_map
@@ -116,9 +128,10 @@ def get_citations(response, resolved_urls_map):
         not hasattr(candidate, "grounding_metadata")
         or not candidate.grounding_metadata
         or not hasattr(candidate.grounding_metadata, "grounding_supports")
+        or candidate.grounding_metadata.grounding_supports is None
     ):
         return citations
-
+        
     for support in candidate.grounding_metadata.grounding_supports:
         citation = {}
 
@@ -164,3 +177,38 @@ def get_citations(response, resolved_urls_map):
                     pass
         citations.append(citation)
     return citations
+
+
+def clean_url(url: str) -> str:
+    """
+    Clean and normalize a URL by removing tracking parameters and normalizing format.
+    """
+    if not url:
+        return url
+    
+    # Remove common tracking parameters
+    import re
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    
+    # Remove common tracking parameters
+    tracking_params = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 
+                      'utm_content', 'fbclid', 'gclid', 'ref', 'source']
+    
+    cleaned_params = {k: v for k, v in params.items() 
+                      if k.lower() not in tracking_params}
+    
+    # Rebuild the URL
+    cleaned_query = urlencode(cleaned_params, doseq=True)
+    cleaned = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        cleaned_query,
+        parsed.fragment
+    ))
+    
+    return cleaned

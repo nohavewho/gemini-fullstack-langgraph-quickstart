@@ -1,11 +1,305 @@
 # mypy: disable - error - code = "no-untyped-def,misc"
 import pathlib
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import fastapi.exceptions
+import json
 
 # Define the FastAPI app
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Import research graph and press monitoring
+from .graph import graph
+from .press_monitor_langgraph import (
+    detect_press_monitor_intent, 
+    extract_monitoring_params,
+    press_monitor_node
+)
+from .state import OverallState as State
+from langgraph.graph import StateGraph, END
+from langchain_core.messages import HumanMessage, AIMessage
+import asyncio
+
+@app.post("/api/press-monitor")
+async def run_press_monitor(request: Request):
+    """Run press monitoring for Azerbaijan"""
+    try:
+        data = await request.json()
+        mode = data.get("mode", "neighbors_priority")
+        options = data.get("options", {})
+        
+        print(f"📰 Press monitoring mode: {mode}")
+        print(f"🔧 Options: {options}")
+        
+        # Create query based on mode and options
+        query = "monitor press about azerbaijan"
+        
+        if mode == "custom":
+            if options.get("languages"):
+                langs = " ".join(options["languages"])
+                query += f" in languages: {langs}"
+            elif options.get("regions"):
+                regions = " ".join(options["regions"])
+                query += f" in regions: {regions}"
+        else:
+            query += f" mode: {mode}"
+        
+        # Run through press monitoring
+        state = State(
+            messages=[HumanMessage(content=query)],
+            integrated_mode=False  # Standalone mode
+        )
+        
+        result = await press_monitor_node(state)
+        
+        messages = result.get("messages", [])
+        if messages:
+            return {"success": True, "result": messages[-1].content}
+        else:
+            return {"success": False, "error": "No response generated"}
+            
+    except Exception as e:
+        print(f"❌ Error in press monitoring: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/research/stream")
+async def run_research_stream(request: Request):
+    """Run research query with streaming updates"""
+    try:
+        data = await request.json()
+        query = data.get("query", "")
+        effort = data.get("effort", "medium")
+        model = data.get("model", "gemini-2.0-flash")
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        print(f"🔍 Research query: {query}")
+        print(f"⚡ Effort: {effort}, Model: {model}")
+        
+        async def generate():
+            try:
+                # Send initial status
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Initializing search...'})}\n\n"
+                
+                # Map effort to research parameters
+                effort_config = {
+                    "low": {"initial_search_query_count": 3, "max_research_loops": 1},
+                    "medium": {"initial_search_query_count": 5, "max_research_loops": 2},
+                    "high": {"initial_search_query_count": 8, "max_research_loops": 3}
+                }
+                
+                config_params = effort_config.get(effort, effort_config["medium"])
+                config_params["reasoning_model"] = model
+                config_params["query_generator_model"] = model
+                
+                # Run the research graph with streaming
+                config = {"configurable": config_params}
+                
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Generating search queries...'})}\n\n"
+                
+                async for chunk in graph.astream(
+                    {
+                        "messages": [HumanMessage(content=query)],
+                        "initial_search_query_count": config_params["initial_search_query_count"],
+                        "max_research_loops": config_params["max_research_loops"],
+                        "reasoning_model": model
+                    },
+                    config=config,
+                    stream_mode="updates"
+                ):
+                    # Send updates about the process
+                    if "generate_query" in chunk:
+                        queries = chunk.get("generate_query", {}).get("query_list", [])
+                        if queries:
+                            yield f"data: {json.dumps({'type': 'status', 'message': f'Generated {len(queries)} search queries'})}\n\n"
+                    
+                    elif "web_research" in chunk:
+                        search_queries = chunk.get("web_research", {}).get("search_query", [])
+                        if search_queries and len(search_queries) > 0:
+                            search_query = str(search_queries[0])[:50]
+                            # Safely create message
+                            message = {'type': 'status', 'message': f'Searching: {search_query}...'}
+                            yield f"data: {json.dumps(message, ensure_ascii=False)}\n\n"
+                    
+                    elif "reflection" in chunk:
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing results...'})}\n\n"
+                    
+                    elif "finalize_answer" in chunk:
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Generating final report...'})}\n\n"
+                        # Send the final result
+                        messages = chunk.get("finalize_answer", {}).get("messages", [])
+                        if messages:
+                            final_message = messages[-1]
+                            if hasattr(final_message, 'content'):
+                                yield f"data: {json.dumps({'type': 'result', 'content': final_message.content})}\n\n"
+                
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                
+            except Exception as e:
+                print(f"❌ Streaming error: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ Error in research stream: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/research")
+async def run_research(request: Request):
+    """Run research query or press monitoring"""
+    try:
+        data = await request.json()
+        query = data.get("query", "")
+        effort = data.get("effort", "medium")
+        model = data.get("model", "gemini-2.0-flash")
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        print(f"🔍 Research query: {query}")
+        print(f"⚡ Effort: {effort}, Model: {model}")
+        
+        # Check if this is a press monitoring request
+        if detect_press_monitor_intent(query):
+            print("📰 Detected press monitoring intent!")
+            
+            # Extract monitoring parameters
+            params = extract_monitoring_params(query)
+            print(f"📊 Monitoring params: {params}")
+            
+            # Create a simple state for press monitoring
+            state = State(
+                messages=[HumanMessage(content=query)],
+                integrated_mode=True  # Enable integrated mode for dual analysis
+            )
+            
+            # Run press monitoring
+            result = await press_monitor_node(state)
+            
+            # Check if we should continue to deep research
+            if result.get("continue_to_research", False):
+                # Get press monitoring results
+                press_results = result.get("press_monitoring_results", {})
+                
+                # Create enhanced query for deep research
+                enhanced_query = f"""
+{query}
+
+По результатам мониторинга прессы найдено {press_results['statistics']['total']} статей.
+Теперь проведите глубокий анализ интернета по этой теме, включая:
+- Анализ социальных сетей и общественного мнения
+- Официальные заявления и дипломатические источники  
+- Экспертные мнения и аналитические материалы
+- Исторический контекст взаимоотношений
+"""
+                
+                # Run deep research with enhanced query
+                config_params = {
+                    "initial_search_query_count": 8,
+                    "max_research_loops": 3,
+                    "reasoning_model": model,
+                    "query_generator_model": model
+                }
+                
+                research_result = await graph.ainvoke(
+                    {
+                        "messages": [HumanMessage(content=enhanced_query)],
+                        "initial_search_query_count": config_params["initial_search_query_count"],
+                        "max_research_loops": config_params["max_research_loops"],
+                        "reasoning_model": model
+                    },
+                    config={"configurable": config_params}
+                )
+                
+                # Combine results
+                combined_response = f"""
+# 📰 Комплексный Анализ: Азербайджан в Мировой Прессе
+
+## Этап 1: Мониторинг Прессы
+
+{result['messages'][-1].content}
+
+### 📊 Краткая Сводка:
+{press_results.get('executive_summary', 'Нет данных')}
+
+## Этап 2: Глубокий Веб-Анализ
+
+{research_result['messages'][-1].content}
+"""
+                
+                return {"success": True, "result": combined_response}
+            else:
+                # Return standalone press monitoring results
+                messages = result.get("messages", [])
+                if messages:
+                    return {"success": True, "result": messages[-1].content}
+                else:
+                    return {"success": False, "error": "No response generated"}
+        
+        
+        # Map effort to research parameters
+        effort_config = {
+            "low": {"initial_search_query_count": 3, "max_research_loops": 1},
+            "medium": {"initial_search_query_count": 5, "max_research_loops": 2}, 
+            "high": {"initial_search_query_count": 8, "max_research_loops": 3}
+        }
+        
+        config_params = effort_config.get(effort, effort_config["medium"])
+        config_params["reasoning_model"] = model
+        config_params["query_generator_model"] = model
+        
+        # Run the research graph
+        config = {"configurable": config_params}
+        
+        result = await graph.ainvoke(
+            {
+                "messages": [HumanMessage(content=query)],
+                "initial_search_query_count": config_params["initial_search_query_count"],
+                "max_research_loops": config_params["max_research_loops"],
+                "reasoning_model": model
+            },
+            config=config
+        )
+        
+        # Extract the final message
+        messages = result.get("messages", [])
+        if messages:
+            final_message = messages[-1]
+            if hasattr(final_message, 'content'):
+                return {"success": True, "result": final_message.content}
+            else:
+                return {"success": True, "result": str(final_message)}
+        else:
+            return {"success": False, "error": "No response generated"}
+            
+    except Exception as e:
+        print(f"❌ Error in research: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def create_frontend_router(build_dir="../frontend/dist"):

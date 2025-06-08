@@ -1,175 +1,191 @@
-import { useStream } from "@langchain/langgraph-sdk/react";
-import type { Message } from "@langchain/langgraph-sdk";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ProcessedEvent } from "@/components/ActivityTimeline";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ChatMessagesView } from "@/components/ChatMessagesView";
 
-export default function App() {
-  const [processedEventsTimeline, setProcessedEventsTimeline] = useState<
-    ProcessedEvent[]
-  >([]);
-  const [historicalActivities, setHistoricalActivities] = useState<
-    Record<string, ProcessedEvent[]>
-  >({});
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const hasFinalizeEventOccurredRef = useRef(false);
+interface Message {
+  id: string;
+  type: "human" | "ai";
+  content: string;
+}
 
-  const thread = useStream<{
-    messages: Message[];
-    initial_search_query_count: number;
-    max_research_loops: number;
-    reasoning_model: string;
-  }>({
-    apiUrl: import.meta.env.DEV
-      ? "http://localhost:2024"
-      : "http://localhost:8123",
-    assistantId: "agent",
-    messagesKey: "messages",
-    onFinish: (event: any) => {
-      console.log(event);
-    },
-    onUpdateEvent: (event: any) => {
-      let processedEvent: ProcessedEvent | null = null;
-      if (event.generate_query) {
-        processedEvent = {
-          title: "Generating Search Queries",
-          data: event.generate_query.query_list.join(", "),
-        };
-      } else if (event.web_research) {
-        const sources = event.web_research.sources_gathered || [];
-        const numSources = sources.length;
-        const uniqueLabels = [
-          ...new Set(sources.map((s: any) => s.label).filter(Boolean)),
-        ];
-        const exampleLabels = uniqueLabels.slice(0, 3).join(", ");
-        processedEvent = {
-          title: "Web Research",
-          data: `Gathered ${numSources} sources. Related to: ${
-            exampleLabels || "N/A"
-          }.`,
-        };
-      } else if (event.reflection) {
-        processedEvent = {
-          title: "Reflection",
-          data: event.reflection.is_sufficient
-            ? "Search successful, generating final answer."
-            : `Need more information, searching for ${event.reflection.follow_up_queries.join(
-                ", "
-              )}`,
-        };
-      } else if (event.finalize_answer) {
-        processedEvent = {
-          title: "Finalizing Answer",
-          data: "Composing and presenting the final answer.",
-        };
-        hasFinalizeEventOccurredRef.current = true;
-      }
-      if (processedEvent) {
-        setProcessedEventsTimeline((prevEvents) => [
-          ...prevEvents,
-          processedEvent!,
-        ]);
-      }
-    },
-  });
+export default function App() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [processedEventsTimeline, setProcessedEventsTimeline] = useState<ProcessedEvent[]>([]);
+  const [historicalActivities, setHistoricalActivities] = useState<Record<string, ProcessedEvent[]>>({});
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
-      const scrollViewport = scrollAreaRef.current.querySelector(
-        "[data-radix-scroll-area-viewport]"
-      );
+      const scrollViewport = scrollAreaRef.current.querySelector("[data-radix-scroll-area-viewport]");
       if (scrollViewport) {
         scrollViewport.scrollTop = scrollViewport.scrollHeight;
       }
     }
-  }, [thread.messages]);
+  }, [messages]);
 
-  useEffect(() => {
-    if (
-      hasFinalizeEventOccurredRef.current &&
-      !thread.isLoading &&
-      thread.messages.length > 0
-    ) {
-      const lastMessage = thread.messages[thread.messages.length - 1];
-      if (lastMessage && lastMessage.type === "ai" && lastMessage.id) {
-        setHistoricalActivities((prev) => ({
-          ...prev,
-          [lastMessage.id!]: [...processedEventsTimeline],
-        }));
+  const handleSubmit = useCallback(async (submittedInputValue: string, effort: string, model: string) => {
+    if (!submittedInputValue.trim()) return;
+    
+    setProcessedEventsTimeline([]);
+    setIsLoading(true);
+
+    // Add human message
+    const humanMessage: Message = {
+      id: Date.now().toString(),
+      type: "human",
+      content: submittedInputValue
+    };
+    setMessages(prev => [...prev, humanMessage]);
+
+    try {
+      // Add initial event
+      setProcessedEventsTimeline([{
+        title: "Searching...",
+        data: "Initializing search..."
+      }]);
+
+      // First try streaming endpoint
+      try {
+        const response = await fetch("http://localhost:2024/api/research/stream", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: submittedInputValue,
+            effort: effort,
+            model: model
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const jsonStr = line.slice(6);
+                  // Skip empty data
+                  if (!jsonStr || jsonStr.trim() === '') continue;
+                  
+                  const data = JSON.parse(jsonStr);
+                  
+                  if (data.type === 'status') {
+                    // Update timeline with status
+                    setProcessedEventsTimeline(prev => [...prev, {
+                      id: Date.now().toString(),
+                      label: data.message || 'Processing...',
+                      status: 'completed'
+                    }]);
+                  } else if (data.type === 'result') {
+                    const aiMessage: Message = {
+                      id: (Date.now() + 1).toString(),
+                      type: "ai",
+                      content: data.content
+                    };
+                    setMessages(prev => [...prev, aiMessage]);
+                    
+                    // Store historical activities
+                    setHistoricalActivities(prev => ({
+                      ...prev,
+                      [aiMessage.id]: [...processedEventsTimeline]
+                    }));
+                  } else if (data.type === 'error') {
+                    throw new Error(data.message || 'Unknown error');
+                  } else if (data.type === 'done') {
+                    console.log('Stream completed');
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e, 'Line:', line);
+                }
+              }
+            }
+          }
+        }
+      } catch (streamError) {
+        // Fallback to non-streaming endpoint
+        console.log('Streaming failed, falling back to regular endpoint');
+        const response = await fetch("http://localhost:2024/api/research", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: submittedInputValue,
+            effort: effort,
+            model: model
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            type: "ai",
+            content: data.result
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // Store historical activities
+          setHistoricalActivities(prev => ({
+            ...prev,
+            [aiMessage.id]: [...processedEventsTimeline]
+          }));
+        }
       }
-      hasFinalizeEventOccurredRef.current = false;
+    } catch (error) {
+      console.error("Error:", error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: "ai",
+        content: `Error: ${error instanceof Error ? error.message : "Unknown error occurred"}`
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-  }, [thread.messages, thread.isLoading, processedEventsTimeline]);
-
-  const handleSubmit = useCallback(
-    (submittedInputValue: string, effort: string, model: string) => {
-      if (!submittedInputValue.trim()) return;
-      setProcessedEventsTimeline([]);
-      hasFinalizeEventOccurredRef.current = false;
-
-      // convert effort to, initial_search_query_count and max_research_loops
-      // low means max 1 loop and 1 query
-      // medium means max 3 loops and 3 queries
-      // high means max 10 loops and 5 queries
-      let initial_search_query_count = 0;
-      let max_research_loops = 0;
-      switch (effort) {
-        case "low":
-          initial_search_query_count = 1;
-          max_research_loops = 1;
-          break;
-        case "medium":
-          initial_search_query_count = 3;
-          max_research_loops = 3;
-          break;
-        case "high":
-          initial_search_query_count = 5;
-          max_research_loops = 10;
-          break;
-      }
-
-      const newMessages: Message[] = [
-        ...(thread.messages || []),
-        {
-          type: "human",
-          content: submittedInputValue,
-          id: Date.now().toString(),
-        },
-      ];
-      thread.submit({
-        messages: newMessages,
-        initial_search_query_count: initial_search_query_count,
-        max_research_loops: max_research_loops,
-        reasoning_model: model,
-      });
-    },
-    [thread]
-  );
+  }, [processedEventsTimeline]);
 
   const handleCancel = useCallback(() => {
-    thread.stop();
+    setIsLoading(false);
     window.location.reload();
-  }, [thread]);
+  }, []);
 
   return (
-    <div className="flex h-screen bg-neutral-800 text-neutral-100 font-sans antialiased">
+    <div className="flex h-screen bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-neutral-100 font-sans antialiased">
       <main className="flex-1 flex flex-col overflow-hidden max-w-4xl mx-auto w-full">
-        <div
-          className={`flex-1 overflow-y-auto ${
-            thread.messages.length === 0 ? "flex" : ""
-          }`}
-        >
-          {thread.messages.length === 0 ? (
+        <div className={`flex-1 overflow-y-auto ${messages.length === 0 ? "flex" : ""}`}>
+          {messages.length === 0 ? (
             <WelcomeScreen
               handleSubmit={handleSubmit}
-              isLoading={thread.isLoading}
+              isLoading={isLoading}
               onCancel={handleCancel}
             />
           ) : (
             <ChatMessagesView
-              messages={thread.messages}
-              isLoading={thread.isLoading}
+              messages={messages}
+              isLoading={isLoading}
               scrollAreaRef={scrollAreaRef}
               onSubmit={handleSubmit}
               onCancel={handleCancel}
