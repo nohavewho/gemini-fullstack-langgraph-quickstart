@@ -710,16 +710,7 @@ export function AzerbaijanPressMonitoringAI() {
                         isAI: message.role !== 'user'
                       },
                       timestamp: new Date().toLocaleTimeString(),
-                      metadata: message.role !== 'user' ? {
-                        sources: ["Reuters", "BBC", "CNN", "Al Jazeera", "Trend News"],
-                        reasoning: [
-                          "Searching international news databases",
-                          "Filtering for target country content", 
-                          "Analyzing sentiment and context",
-                          "Categorizing by topic and relevance"
-                        ],
-                        searchQuery: messageContent
-                      } : undefined
+                      metadata: undefined
                     };
                     return <ChatMessage key={message.id} message={transformedMessage} />;
                   })}
