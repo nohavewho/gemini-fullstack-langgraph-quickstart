@@ -196,7 +196,15 @@ export function AzerbaijanPressMonitoringAI() {
           mode = 'custom';
         }
 
-        const response = await fetch('/api/press-monitor-full-logic', {
+        console.log('Sending request to press monitor:', {
+          mode,
+          effortLevel,
+          selectedModel,
+          searchQuery: userInput,
+          userLanguage: language
+        });
+        
+        const response = await fetch('/api/press-monitor-working', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -222,7 +230,9 @@ export function AzerbaijanPressMonitoringAI() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to get analysis');
+          const errorText = await response.text();
+          console.error('API Error:', response.status, errorText);
+          throw new Error(`Failed to get analysis: ${response.status}`);
         }
 
         // Get the response
@@ -250,7 +260,7 @@ export function AzerbaijanPressMonitoringAI() {
           throw new Error(data.error || 'Failed to get press monitor results');
         }
       } catch (error) {
-        console.error('Error calling LangGraph:', error);
+        console.error('Error calling Press Monitor API:', error);
         const errorMessage = {
           id: Math.random().toString(36).substring(2, 11),
           role: 'assistant' as const,
