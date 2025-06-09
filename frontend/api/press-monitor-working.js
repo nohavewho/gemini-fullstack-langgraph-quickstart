@@ -5,7 +5,7 @@
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 300, // 5 minutes for full analysis
+  maxDuration: 60, // Back to 60 seconds to avoid timeouts
 };
 
 // Language configurations
@@ -203,9 +203,9 @@ export default async function handler(request) {
         sourceCountries = queryAnalysis.sourceCountries;
       }
     }
-    // Calculate articles based on effort level
-    const articlesPerLanguage = Math.max(3, effortLevel * 2); // 3-10 articles per language
-    const maxLanguages = Math.min(sourceCountries.length, Math.max(2, effortLevel)); // 2-5 languages
+    // Calculate articles based on effort level - REDUCED for speed
+    const articlesPerLanguage = Math.min(3, effortLevel); // 1-3 articles per language
+    const maxLanguages = Math.min(sourceCountries.length, 2); // Max 2 languages to avoid timeout
 
     // Map mode to source countries if not extracted from query
     if (sourceCountries.length === 0) {
@@ -275,13 +275,19 @@ export default async function handler(request) {
   }
 }
 
+// Cache API key
+let CACHED_API_KEY = null;
+
 // Main press monitoring logic
 async function runPressMonitor(targetCountries, sourceCountries, articlesPerLanguage, model, userLanguage, userQuery) {
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const GEMINI_API_KEY = CACHED_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
+  
+  // Cache the key
+  CACHED_API_KEY = GEMINI_API_KEY;
 
   // Determine languages to search
   let languagesToSearch = sourceCountries.map(c => getCountryLanguageCode(c));
@@ -313,12 +319,8 @@ async function runPressMonitor(targetCountries, sourceCountries, articlesPerLang
         model
       );
       
-      // Analyze sentiment for each article
-      const analyzedArticles = [];
-      for (const article of articles) {
-        const analyzed = await analyzeArticleSentiment(article, targetCountries, GEMINI_API_KEY, model);
-        analyzedArticles.push(analyzed);
-      }
+      // Analyze sentiment in BATCH to save time
+      const analyzedArticles = await analyzeSentimentBatch(articles, targetCountries, GEMINI_API_KEY, model);
       
       coverageByCountry[countryCode] = analyzedArticles;
       allArticles.push(...analyzedArticles);
@@ -389,45 +391,45 @@ async function generateRealisticArticles(countryCode, langCode, targetCountries,
   const articles = [];
   const topicsToUse = [...countryConfig.topics];
   
-  for (let i = 0; i < count && i < countryConfig.sources.length; i++) {
-    const source = countryConfig.sources[i];
-    const topic = topicsToUse[i % topicsToUse.length];
+  // Generate multiple articles in ONE prompt to save API calls
+  const sourcesToUse = countryConfig.sources.slice(0, Math.min(count, 3));
+  const topicsStr = topicsToUse.slice(0, count).join(', ');
+  
+  const batchPrompt = `You are a ${languageName} news aggregator covering ${countriesNames} from ${countryName}'s perspective.
+
+Generate ${count} DIFFERENT news articles from these sources: ${sourcesToUse.join(', ')}
+Topics to cover: ${topicsStr}
+Date: ${dateStr}
+
+For EACH article, provide:
+===ARTICLE===
+SOURCE: [source name]
+HEADLINE: [headline in ${languageName}]
+SUBHEADLINE: [subtitle in ${languageName}]
+CONTENT: [2-3 paragraphs in ${languageName}]
+SENTIMENT_INDICATORS: [words/phrases showing sentiment]
+===END===
+
+IMPORTANT: Each article must be from a DIFFERENT source and cover a DIFFERENT aspect.`;
+  
+  try {
+    const response = await callGemini(batchPrompt, 0.8, apiKey, model);
+    const articleBlocks = response.split('===ARTICLE===').filter(b => b.includes('===END==='));
     
-    const prompt = `You are ${source}, a major ${languageName} news outlet from ${countryName}.
-
-Generate a REALISTIC news article about ${countriesNames} that would appear TODAY (${dateStr}).
-
-Context:
-- Focus topic: ${topic}
-- Perspective: How ${countryName} media covers ${countriesNames}
-- Style: Professional journalism in ${languageName}
-
-IMPORTANT: The article must reflect ${countryName}'s ACTUAL perspective on ${countriesNames}.
-
-Format:
-HEADLINE: [Compelling headline in ${languageName}]
-SUBHEADLINE: [Supporting detail in ${languageName}]
-AUTHOR: [Realistic journalist name]
-CONTENT: [3-4 paragraphs of article content in ${languageName}]
-QUOTES: [Include 1-2 expert quotes]
-SENTIMENT_INDICATORS: [List phrases that indicate positive/negative/neutral tone]`;
-
-    try {
-      const response = await callGemini(prompt, 0.8, apiKey, model);
-      const article = parseArticleResponse(response, {
-        source_name: source,
+    for (const block of articleBlocks) {
+      const cleanBlock = block.replace('===END===', '').trim();
+      const article = parseArticleResponse(cleanBlock, {
         language_code: langCode,
         language_name: languageName,
-        country_code: countryCode,
-        topic: topic
+        country_code: countryCode
       });
       
       if (article) {
         articles.push(article);
       }
-    } catch (error) {
-      console.error(`Error generating article for ${source}:`, error);
     }
+  } catch (error) {
+    console.error(`Error generating articles for ${countryCode}:`, error);
   }
   
   return articles;
@@ -438,22 +440,67 @@ function parseArticleResponse(response, metadata) {
   const lines = response.split('\n');
   
   for (const line of lines) {
-    if (line.startsWith('HEADLINE:')) {
-      article.title = line.replace('HEADLINE:', '').trim();
-    } else if (line.startsWith('SUBHEADLINE:')) {
-      article.subtitle = line.replace('SUBHEADLINE:', '').trim();
-    } else if (line.startsWith('AUTHOR:')) {
-      article.author = line.replace('AUTHOR:', '').trim();
-    } else if (line.startsWith('CONTENT:')) {
-      article.content = response.split('CONTENT:')[1].split('QUOTES:')[0].trim();
-    } else if (line.startsWith('QUOTES:')) {
-      article.quotes = response.split('QUOTES:')[1].split('SENTIMENT_INDICATORS:')[0].trim();
-    } else if (line.startsWith('SENTIMENT_INDICATORS:')) {
-      article.sentiment_indicators = line.replace('SENTIMENT_INDICATORS:', '').trim();
+    if (line.includes('SOURCE:')) {
+      article.source_name = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('HEADLINE:')) {
+      article.title = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('SUBHEADLINE:')) {
+      article.subtitle = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('CONTENT:')) {
+      const contentStart = response.indexOf('CONTENT:') + 8;
+      const contentEnd = response.indexOf('SENTIMENT_INDICATORS:');
+      article.content = response.substring(contentStart, contentEnd > 0 ? contentEnd : undefined).trim();
+    } else if (line.includes('SENTIMENT_INDICATORS:')) {
+      article.sentiment_indicators = line.split(':').slice(1).join(':').trim();
     }
   }
   
   return article.title ? article : null;
+}
+
+async function analyzeSentimentBatch(articles, targetCountries, apiKey, model) {
+  if (!articles.length) return [];
+  
+  const batchPrompt = `Analyze sentiment for these ${articles.length} articles about ${targetCountries.map(c => COUNTRY_NAMES[c]).join(", ")}:
+
+${articles.map((a, i) => `
+===ARTICLE ${i+1}===
+Title: ${a.title}
+Source: ${a.source_name}
+Indicators: ${a.sentiment_indicators || 'none'}
+`).join('\n')}
+
+For EACH article, determine:
+- Sentiment: Critical (-1.0 to -0.3), Neutral (-0.2 to 0.2), or Positive (0.3 to 1.0)
+- Main theme/topic
+
+Format:
+ARTICLE 1: [sentiment] | [score] | [main theme]
+ARTICLE 2: [sentiment] | [score] | [main theme]
+etc.`;
+  
+  try {
+    const response = await callGemini(batchPrompt, 0.3, apiKey, model);
+    const lines = response.split('\n').filter(l => l.includes('ARTICLE'));
+    
+    return articles.map((article, i) => {
+      const analysisLine = lines.find(l => l.includes(`ARTICLE ${i+1}`));
+      if (analysisLine) {
+        const parts = analysisLine.split('|').map(p => p.trim());
+        article.sentiment = parts[0]?.split(':')[1]?.trim().toLowerCase() || 'neutral';
+        article.sentiment_score = parseFloat(parts[1]) || 0;
+        article.main_theme = parts[2] || 'general news';
+      } else {
+        article.sentiment = 'neutral';
+        article.sentiment_score = 0;
+        article.main_theme = 'general news';
+      }
+      return article;
+    });
+  } catch (error) {
+    console.error('Batch sentiment analysis error:', error);
+    return articles.map(a => ({ ...a, sentiment: 'neutral', sentiment_score: 0 }));
+  }
 }
 
 async function analyzeArticleSentiment(article, targetCountries, apiKey, model) {
