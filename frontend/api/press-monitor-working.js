@@ -5,7 +5,7 @@
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 60, // 60 seconds max
+  maxDuration: 150, // 150 seconds max
 };
 
 // Language configurations
