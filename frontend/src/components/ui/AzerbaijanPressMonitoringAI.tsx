@@ -18,8 +18,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
-import { addDays } from "date-fns";
+import { addDays, format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 
 // Import new components
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -47,8 +50,8 @@ export function AzerbaijanPressMonitoringAI() {
   const [targetCountry, setTargetCountry] = useState<string>("AZ");
   const [selectedCountries, setSelectedCountries] = useState<string[]>(["US", "RU", "TR", "DE"]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
-  const [date] = useState<DateRange | undefined>({
-    from: addDays(new Date(), -30),
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: addDays(new Date(), -7),
     to: new Date(),
   });
   const [targetCountriesOpen, setTargetCountriesOpen] = useState(false);
@@ -57,6 +60,8 @@ export function AzerbaijanPressMonitoringAI() {
   const [effortLevel, setEffortLevel] = useState<number>(3);
   const [selectedModel, setSelectedModel] = useState<string>('gemini-2.0-flash');
   const [showSettings, setShowSettings] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pendingPresetCountries, setPendingPresetCountries] = useState<string[] | null>(null);
   
   // Model options with descriptions
   const modelOptions = [
@@ -204,42 +209,70 @@ export function AzerbaijanPressMonitoringAI() {
           userLanguage: language
         });
         
-        const streamingSupported = selectedModel === 'gemini-2.0-flash' && effortLevel >= 3;
-        const endpoint = streamingSupported ? '/api/press-monitor-stream' : '/api/press-monitor-working';
+        // Используем только working endpoint который точно работает
+        const endpoint = '/api/press-monitor-working';
         
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: mode,
-            options: mode === 'custom' ? {
-              languages: selectedCountries.map(code => {
-                const countryToLang = {
-                  'US': 'en', 'UK': 'en', 'TR': 'tr', 'RU': 'ru', 'IR': 'fa',
-                  'GE': 'ka', 'AM': 'hy', 'KZ': 'kk', 'UZ': 'uz', 'TM': 'tk',
-                  'KG': 'ky', 'TJ': 'tg', 'DE': 'de', 'FR': 'fr', 'CN': 'zh',
-                  'JP': 'ja', 'KR': 'ko', 'SA': 'ar', 'ES': 'es', 'PT': 'pt',
-                  'IT': 'it', 'TH': 'th', 'ID': 'id', 'MY': 'ms', 'VN': 'vi',
-                  'PH': 'tl'
-                };
-                return countryToLang[code] || 'en';
-              })
-            } : {},
-            effortLevel: effortLevel,
-            model: selectedModel,
-            searchQuery: userInput,
-            userLanguage: language
-          })
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('API Error:', response.status, errorText);
-          throw new Error(`Failed to get analysis: ${response.status}`);
+        // Add retry logic for timeouts
+        let retries = 0;
+        let response;
+        
+        while (retries < 2) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 58000); // 58 seconds timeout
+            
+            response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: mode,
+                options: mode === 'custom' ? {
+                  countries: selectedCountries // Just send country codes, backend will figure out languages
+                } : {},
+                effortLevel: Math.min(effortLevel, 3), // Limit effort level to avoid timeouts
+                model: selectedModel,
+                searchQuery: userInput,
+                userLanguage: language
+              }),
+              signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
+            
+            if (response.ok) break;
+            
+            if (response.status === 504 || response.status === 408) {
+              retries++;
+              if (retries < 2) {
+                console.log(`Timeout error, retrying (attempt ${retries + 1}/2)...`);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                continue;
+              }
+            }
+            
+            const errorText = await response.text();
+            console.error('API Error:', response.status, errorText);
+            throw new Error(`Failed to get analysis: ${response.status}`);
+          } catch (error) {
+            if (error.name === 'AbortError') {
+              retries++;
+              if (retries < 2) {
+                console.log(`Request timeout, retrying (attempt ${retries + 1}/2)...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
+              }
+              throw new Error('Request timeout. Please try with fewer countries or lower effort level.');
+            }
+            throw error;
+          }
         }
 
-        // Handle streaming response if supported
-        if (streamingSupported && response.headers.get('content-type')?.includes('event-stream')) {
+        if (!response || !response.ok) {
+          const errorText = response ? await response.text() : 'No response';
+          console.error('API Error:', response?.status, errorText);
+          throw new Error(`Failed to get analysis: ${response?.status || 'timeout'}`);
+        }
+
+        // Handle regular JSON response
+        if (false) { // Отключаем streaming полностью
           const reader = response.body?.getReader();
           const decoder = new TextDecoder();
           let streamingMessage = {
@@ -337,6 +370,17 @@ export function AzerbaijanPressMonitoringAI() {
               });
             }
           } else {
+            // Check if it's a user-friendly error message
+            if (data.error && (data.error.includes('specify') || data.error.includes('укажите'))) {
+              const errorMsg = {
+                id: Math.random().toString(36).substring(2, 11),
+                role: 'assistant' as const,
+                content: data.error,
+                createdAt: new Date()
+              };
+              setMessages(prev => [...prev, errorMsg]);
+              return; // Don't throw, just show the message
+            }
             throw new Error(data.error || 'Failed to get press monitor results');
           }
         }
@@ -345,7 +389,11 @@ export function AzerbaijanPressMonitoringAI() {
         const errorMessage = {
           id: Math.random().toString(36).substring(2, 11),
           role: 'assistant' as const,
-          content: 'Sorry, I encountered an error analyzing the press coverage. Please try again.',
+          content: error.message.includes('timeout') 
+            ? 'The analysis is taking too long. Please try with fewer countries or a lower effort level (1-3).'
+            : error.message.includes('specify') || error.message.includes('укажите')
+            ? error.message
+            : 'Sorry, I encountered an error analyzing the press coverage. Please try again.',
           createdAt: new Date()
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -359,17 +407,38 @@ export function AzerbaijanPressMonitoringAI() {
 
 
   const handlePresetSelect = (countryCodes: string[]) => {
-    setSelectedCountries(countryCodes);
+    setPendingPresetCountries(countryCodes);
+    setShowDatePicker(true);
     setShowPresets(false);
-    // Show notification
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-2 duration-300';
-    toast.textContent = `${t('preset_selected')} - ${countryCodes.length} ${t('countries_selected')}`;
-    document.body.appendChild(toast);
+  };
+
+  const handleDateSelect = async (newDate: DateRange | undefined) => {
+    if (!newDate || !pendingPresetCountries) return;
+    
+    // Set the selected countries and date
+    setSelectedCountries(pendingPresetCountries);
+    setDate(newDate);
+    setShowDatePicker(false);
+    
+    // Create automatic query based on preset
+    const presetName = PRESET_GROUPS.find(p => 
+      JSON.stringify(p.countries.sort()) === JSON.stringify(pendingPresetCountries.sort())
+    )?.id || 'custom';
+    
+    const dateStr = newDate.from && newDate.to ? 
+      `${format(newDate.from, 'dd.MM.yyyy')} - ${format(newDate.to, 'dd.MM.yyyy')}` : 
+      'последние новости';
+    
+    const query = `Анализ прессы: ${presetName}, период: ${dateStr}`;
+    
+    // Clear pending
+    setPendingPresetCountries(null);
+    
+    // Auto-start analysis
+    setInput(query);
     setTimeout(() => {
-      toast.classList.add('animate-out', 'slide-out-to-bottom-2');
-      setTimeout(() => toast.remove(), 300);
-    }, 2000);
+      handleSendMessage();
+    }, 100);
   };
 
   const handleVoiceInput = () => {
@@ -637,8 +706,8 @@ export function AzerbaijanPressMonitoringAI() {
             </div>
           </div>
 
-          {/* Country Selection - Compact */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+          {/* Country and Date Selection - Compact */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
             <Popover open={targetCountriesOpen} onOpenChange={setTargetCountriesOpen}>
               <PopoverTrigger asChild>
                 <Button 
@@ -715,6 +784,84 @@ export function AzerbaijanPressMonitoringAI() {
                 </ScrollArea>
               </PopoverContent>
             </Popover>
+            
+            {/* Date Range Selector */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-between text-left font-normal"
+                >
+                  <span className="truncate">
+                    <CalendarIcon className="mr-2 h-4 w-4 inline" />
+                    {date?.from ? (
+                      date.to ? (
+                        <>
+                          {format(date.from, "dd.MM.yy")} - {format(date.to, "dd.MM.yy")}
+                        </>
+                      ) : (
+                        format(date.from, "dd.MM.yyyy")
+                      )
+                    ) : (
+                      t('select_date_range') || 'Select dates'
+                    )}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-4" align="end">
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDate({ from: new Date(), to: new Date() })}
+                    >
+                      {t('today') || 'Сегодня'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDate({ from: addDays(new Date(), -1), to: addDays(new Date(), -1) })}
+                    >
+                      {t('yesterday') || 'Вчера'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
+                    >
+                      {t('last_week') || 'Неделя'}
+                    </Button>
+                  </div>
+                  <Calendar
+                    mode="range"
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={1}
+                    disabled={(date) => date > new Date()}
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+          
+          {/* Quick Analysis Button */}
+          <div className="mt-3 flex justify-end">
+            <Button 
+              onClick={() => {
+                const dateStr = date?.from && date?.to ? 
+                  `${format(date.from, 'dd.MM.yyyy')} - ${format(date.to, 'dd.MM.yyyy')}` : 
+                  'последняя неделя';
+                const query = `Мониторинг прессы за период: ${dateStr}`;
+                setInput(query);
+                setTimeout(() => handleSendMessage(), 100);
+              }}
+              disabled={selectedCountries.length === 0}
+              className="gap-2"
+            >
+              <CalendarIcon className="h-4 w-4" />
+              {t('start_analysis') || 'Начать анализ'}
+            </Button>
           </div>
         </div>
       </div>
@@ -727,33 +874,23 @@ export function AzerbaijanPressMonitoringAI() {
               <div className="flex-1 overflow-auto p-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
-                  <h3 className="text-2xl font-semibold mb-4">{t('welcome_back')}</h3>
-                  <p className="text-muted-foreground mb-8 max-w-2xl text-center">
-                    {t('select_preset_or_ask')}
+                  <h3 className="text-3xl font-bold mb-2">{t('welcome_back')}, {user?.name?.split(' ')[0] || 'Friend'}!</h3>
+                  <p className="text-lg text-muted-foreground mb-8 max-w-2xl text-center">
+                    Choose a region to monitor or ask your own question
                   </p>
                   
                   {showPresets && (
-                    <div className="w-full max-w-4xl">
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-sm font-medium text-muted-foreground">{t('presets')}</h4>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setShowPresets(false)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className="w-full max-w-5xl">
+                      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                         {PRESET_GROUPS.map((group) => (
                           <Button
                             key={group.id}
                             variant="outline"
-                            className="h-auto p-3 flex flex-col items-center text-center hover:border-primary transition-colors"
+                            className="h-auto p-2 flex flex-col items-center text-center hover:border-primary hover:bg-primary/5 transition-all transform hover:scale-105"
                             onClick={() => handlePresetSelect(group.countries)}
                           >
-                            <div className="text-2xl mb-1">{group.icon}</div>
-                            <span className="text-xs font-medium">{t(group.id)}</span>
+                            <div className="text-xl mb-0.5">{group.icon}</div>
+                            <span className="text-[10px] font-medium leading-tight">{t(group.id)}</span>
                           </Button>
                         ))}
                       </div>
@@ -821,25 +958,6 @@ export function AzerbaijanPressMonitoringAI() {
 
             {/* Input Area - Fixed at bottom */}
             <div className="flex-shrink-0">
-              {/* Settings indicator */}
-              {(effortLevel !== 3 || selectedModel !== 'gemini-2.0-flash-exp') && (
-                <div className="px-4 pb-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Settings className="h-3 w-3" />
-                    <span>Using custom settings:</span>
-                    {effortLevel !== 3 && (
-                      <Badge variant="outline" className="text-xs py-0 h-5">
-                        Effort: {effortLabels[effortLevel - 1]}
-                      </Badge>
-                    )}
-                    {selectedModel !== 'gemini-2.0-flash-exp' && (
-                      <Badge variant="outline" className="text-xs py-0 h-5">
-                        {modelOptions.find(m => m.value === selectedModel)?.label}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              )}
               <ChatInput
                 value={input}
                 onChange={(value) => setInput(value)}
@@ -857,6 +975,77 @@ export function AzerbaijanPressMonitoringAI() {
           </div>
         </div>
       </div>
+      
+      {/* Date Picker Dialog */}
+      <Dialog open={showDatePicker} onOpenChange={setShowDatePicker}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{t('select_date_range') || 'Выберите период'}</DialogTitle>
+            <DialogDescription>
+              {t('select_date_range_desc') || 'Выберите период для анализа прессы'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex flex-col space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDate({ from: new Date(), to: new Date() })}
+                >
+                  {t('today') || 'Сегодня'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDate({ from: addDays(new Date(), -1), to: addDays(new Date(), -1) })}
+                >
+                  {t('yesterday') || 'Вчера'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
+                >
+                  {t('last_week') || 'Неделя'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDate({ from: addDays(new Date(), -30), to: new Date() })}
+                >
+                  {t('last_month') || 'Месяц'}
+                </Button>
+              </div>
+              <Calendar
+                mode="range"
+                selected={date}
+                onSelect={setDate}
+                numberOfMonths={1}
+                disabled={(date) => date > new Date()}
+              />
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDatePicker(false);
+                    setPendingPresetCountries(null);
+                  }}
+                >
+                  {t('cancel') || 'Отмена'}
+                </Button>
+                <Button
+                  onClick={() => handleDateSelect(date)}
+                  disabled={!date?.from}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {t('start_analysis') || 'Начать анализ'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

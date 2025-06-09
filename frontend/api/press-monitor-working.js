@@ -5,7 +5,7 @@
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 60, // Back to 60 seconds to avoid timeouts
+  maxDuration: 60, // 60 seconds to avoid Vercel timeout
 };
 
 // Language configurations
@@ -59,7 +59,19 @@ const COUNTRY_NAMES = {
   "PT": "Portugal",
   "JP": "Japan",
   "KR": "South Korea",
-  "SA": "Saudi Arabia"
+  "SA": "Saudi Arabia",
+  "EG": "Egypt",
+  "JO": "Jordan",
+  "LB": "Lebanon",
+  "MA": "Morocco",
+  "AE": "United Arab Emirates",
+  "QA": "Qatar",
+  "KW": "Kuwait",
+  "BH": "Bahrain",
+  "OM": "Oman",
+  "SY": "Syria",
+  "IQ": "Iraq",
+  "YE": "Yemen"
 };
 
 // Country configurations with sources and topics
@@ -115,6 +127,26 @@ const COUNTRY_SOURCES = {
   'UK': {
     sources: ['BBC News', 'The Guardian', 'The Times', 'Financial Times', 'The Telegraph', 'Reuters UK'],
     topics: ['international relations', 'finance', 'politics', 'security', 'economy']
+  },
+  'SA': {
+    sources: ['العربية', 'الشرق الأوسط', 'الرياض', 'SPA', 'Arab News'],
+    topics: ['regional politics', 'energy', 'economy', 'diplomacy']
+  },
+  'EG': {
+    sources: ['الأهرام', 'الأخبار', 'المصري اليوم', 'MENA', 'Daily News Egypt'],
+    topics: ['regional stability', 'economy', 'politics', 'culture']
+  },
+  'JO': {
+    sources: ['الرأي', 'الدستور', 'Jordan Times', 'Petra News'],
+    topics: ['regional affairs', 'economy', 'politics', 'security']
+  },
+  'LB': {
+    sources: ['النهار', 'الأخبار', 'Daily Star', 'L\'Orient-Le Jour'],
+    topics: ['politics', 'economy', 'regional tensions', 'culture']
+  },
+  'MA': {
+    sources: ['هسبريس', 'Le Matin', 'L\'Economiste', 'MAP'],
+    topics: ['economy', 'politics', 'regional cooperation', 'culture']
   }
 };
 
@@ -136,25 +168,39 @@ const LANGUAGE_SOURCES = {
 
 // Analyze user query to extract countries and intent
 async function analyzeUserQuery(query, apiKey, model) {
-  const prompt = `Analyze this press monitoring query: "${query}"
+  const allCountries = Object.entries(COUNTRY_NAMES).map(([code, name]) => `${code}=${name}`).join(', ');
+  
+  const prompt = `You are an intelligent press monitoring query analyzer. Analyze this query and extract countries.
 
-Extract:
-1. TARGET countries (what countries to monitor news ABOUT) - use ISO codes
-2. SOURCE countries (what countries' media to search IN) - use ISO codes
+Query: "${query}"
 
-Examples:
-- "What does Armenia think about Azerbaijan?" → Target: ["AZ"], Source: ["AM"]
-- "How is Turkey covered in Russian media?" → Target: ["TR"], Source: ["RU"]
-- "Azerbaijan news from neighbors" → Target: ["AZ"], Source: ["TR", "RU", "IR", "GE", "AM"]
-- "что пишут об Азербайджане в Армении" → Target: ["AZ"], Source: ["AM"]
-- "казахстан об украине" → Target: ["UA"], Source: ["KZ"]
-- "казахстан об украине за вчера" → Target: ["UA"], Source: ["KZ"]
+UNDERSTANDING GROUPS AND REGIONS:
+- "neighbors/соседи" → neighboring countries
+- "arabic world/арабский мир/арабские страны" → Arab countries (SA, EG, JO, LB, MA, AE, QA, KW, BH, OM, SY, IQ, YE)
+- "central asia/центральная азия" → KZ, UZ, TM, KG, TJ
+- "europe/европа" → DE, FR, UK, IT, ES, NL, BE, PL, etc.
+- "caucasus/кавказ" → AZ, GE, AM
+- "gulf states/персидский залив" → SA, AE, QA, KW, BH, OM
+- "post-soviet/постсоветские" → RU, UA, BY, KZ, UZ, GE, AM, AZ, etc.
+- "global powers/мировые державы" → US, CN, RU, UK, FR, DE, JP
+- "turkic world/тюркский мир" → TR, AZ, KZ, UZ, KG, TM
 
-Country codes: AZ=Azerbaijan, AM=Armenia, GE=Georgia, TR=Turkey, RU=Russia, IR=Iran, 
-US=USA, CN=China, DE=Germany, FR=France, KZ=Kazakhstan, UZ=Uzbekistan, UA=Ukraine,
-UK=United Kingdom, IN=India, ES=Spain, IT=Italy, JP=Japan, KR=South Korea
+UNDERSTANDING INTENT:
+- If query asks "what X thinks about Y" → Target: Y, Source: X
+- If query asks "news about X in Y media" → Target: X, Source: Y
+- If query asks "X about Y" → Target: Y, Source: X
+- If query mentions only countries without relationship → Target: mentioned countries, Source: auto-select relevant
+- If query mentions a region/group → expand to actual country codes
 
-Return JSON:
+EXAMPLES:
+- "arabic_world" → Target: ["AZ"], Source: ["SA", "EG", "JO", "LB", "MA"]
+- "что пишут соседи об Азербайджане" → Target: ["AZ"], Source: ["TR", "RU", "IR", "GE", "AM"]
+- "european media about Ukraine" → Target: ["UA"], Source: ["DE", "FR", "UK", "IT", "ES"]
+- "анализ прессы: arabic_world, период: 02.06.2025 - 09.06.2025" → Target: ["AZ"], Source: ["SA", "EG", "JO", "LB", "MA"]
+
+Available countries: ${allCountries}
+
+Return JSON with ISO country codes:
 {
   "targetCountries": ["XX"],
   "sourceCountries": ["YY", "ZZ"]
@@ -164,7 +210,13 @@ Return JSON:
     const response = await callGemini(prompt, 0.3, apiKey, model);
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const result = JSON.parse(jsonMatch[0]);
+      
+      // Validate country codes
+      result.targetCountries = result.targetCountries.filter(code => COUNTRY_NAMES[code]);
+      result.sourceCountries = result.sourceCountries.filter(code => COUNTRY_NAMES[code]);
+      
+      return result;
     }
   } catch (error) {
     console.error('Query analysis error:', error);
@@ -214,7 +266,7 @@ export default async function handler(request) {
     let targetCountries = ['AZ']; // Default to Azerbaijan
     let sourceCountries = [];
     
-    // AI-powered query understanding
+    // AI-powered query understanding - NO HARDCODE!
     if (searchQuery) {
       console.log('Analyzing user query:', searchQuery);
       try {
@@ -237,9 +289,9 @@ export default async function handler(request) {
     }
     console.log('After query analysis - Target:', targetCountries, 'Source:', sourceCountries);
     
-    // Calculate articles based on effort level
-    const articlesPerLanguage = Math.min(5, effortLevel + 2); // 3-5 articles per language
-    const maxLanguages = Math.min(sourceCountries.length || 5, 3); // Max 3 languages
+    // Reduced limits to avoid timeouts
+    const articlesPerLanguage = Math.min(3, effortLevel); // 1-3 articles per language
+    const maxLanguages = Math.min(sourceCountries.length || 3, 3); // Max 3 languages to stay under 60s
 
     // Map mode to source countries if not extracted from query
     if (sourceCountries.length === 0) {
@@ -258,25 +310,34 @@ export default async function handler(request) {
         sourceCountries = ['CN', 'JP', 'KR', 'IN'];
         break;
       case 'custom':
-        if (options.languages && options.languages.length > 0) {
-          const langToCountry = {
-            'tr': 'TR', 'ru': 'RU', 'fa': 'IR', 'ka': 'GE', 'hy': 'AM',
-            'kk': 'KZ', 'uz': 'UZ', 'tk': 'TM', 'ky': 'KG', 'tg': 'TJ',
-            'de': 'DE', 'fr': 'FR', 'en': 'US', 'zh': 'CN', 'ja': 'JP',
-            'ko': 'KR', 'ar': 'SA', 'es': 'ES', 'pt': 'PT', 'it': 'IT',
-            'uk': 'UA'
-          };
-          sourceCountries = options.languages
-            .map(lang => langToCountry[lang] || 'US')
-            .filter((v, i, a) => a.indexOf(v) === i);
-        } else if (sourceCountries.length === 0) {
-          // If custom mode but no languages or source countries from query, use defaults
-          sourceCountries = ['US', 'UK', 'RU', 'TR', 'DE'];
+        if (options.countries && options.countries.length > 0) {
+          // Use countries directly from frontend
+          sourceCountries = options.countries;
         }
+        // NO DEFAULTS! User must specify source countries
         break;
       default:
-        sourceCountries = ['US', 'UK', 'RU', 'TR'];
+        // NO DEFAULTS! Must be specified
+        sourceCountries = [];
       }
+    }
+
+    // Check if we have source countries
+    if (sourceCountries.length === 0) {
+      const errorMessage = userLanguage === 'ru' 
+        ? 'Пожалуйста, укажите страны для мониторинга прессы. Например: "что пишут в Турции об Азербайджане" или "арабские СМИ об Азербайджане"'
+        : 'Please specify which countries\' media to monitor. For example: "what Turkey writes about Azerbaijan" or "Arab media about Azerbaijan"';
+      
+      return new Response(JSON.stringify({
+        success: false,
+        error: errorMessage
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      });
     }
 
     // Run the press monitoring with selected languages only
@@ -399,7 +460,10 @@ function getCountryLanguageCode(countryCode) {
     "GE": "ka", "AM": "hy", "KZ": "kk", "UZ": "uz",
     "TM": "tk", "KG": "ky", "TJ": "tg", "ES": "es",
     "IT": "it", "PT": "pt", "JP": "ja", "KR": "ko",
-    "SA": "ar", "IN": "hi", "PK": "ur", "UA": "uk"
+    "SA": "ar", "IN": "hi", "PK": "ur", "UA": "uk",
+    "EG": "ar", "JO": "ar", "LB": "ar", "MA": "ar",
+    "AE": "ar", "QA": "ar", "KW": "ar", "BH": "ar",
+    "OM": "ar", "SY": "ar", "IQ": "ar", "YE": "ar"
   };
   return countryLanguageMap[countryCode] || "en";
 }
@@ -698,56 +762,146 @@ Provide a professional executive summary with clear sections and data-driven ins
 }
 
 function generateVisualStatistics(allArticles, coverageByCountry, languages, sources, positive, negative, neutral, userLanguage = 'en') {
-  // Translations
   const t = {
-    title: userLanguage === 'ru' ? 'ДЕТАЛЬНАЯ СТАТИСТИКА' : 'DETAILED STATISTICS',
-    sentiment: userLanguage === 'ru' ? 'Распределение тональности' : 'Sentiment Distribution',
-    positive: userLanguage === 'ru' ? 'Позитив' : 'Positive',
-    negative: userLanguage === 'ru' ? 'Негатив' : 'Negative',
-    neutral: userLanguage === 'ru' ? 'Нейтрал' : 'Neutral',
-    coverage: userLanguage === 'ru' ? 'Покрытие по странам' : 'Coverage by Source Country',
-    sources: userLanguage === 'ru' ? 'Основные источники' : 'Top Sources',
-    metadata: userLanguage === 'ru' ? 'Метаданные анализа' : 'Analysis Metadata',
-    total: userLanguage === 'ru' ? 'Проанализировано статей' : 'Total Articles Analyzed',
-    langs: userLanguage === 'ru' ? 'Языки' : 'Languages Covered',
-    date: userLanguage === 'ru' ? 'Дата' : 'Date',
-    depth: userLanguage === 'ru' ? 'Глубина анализа' : 'Analysis Depth',
+    title: userLanguage === 'ru' ? '📊 АНАЛИТИЧЕСКИЙ ДАШБОРД' : '📊 EXECUTIVE ANALYTICS DASHBOARD',
+    sentiment: userLanguage === 'ru' ? '🎯 Тональность публикаций' : '🎯 Sentiment Analysis',
+    positive: userLanguage === 'ru' ? '✅ Позитив' : '✅ Positive',
+    negative: userLanguage === 'ru' ? '❌ Негатив' : '❌ Negative',
+    neutral: userLanguage === 'ru' ? '⚪ Нейтрал' : '⚪ Neutral',
+    coverage: userLanguage === 'ru' ? '🌍 География покрытия' : '🌍 Geographic Coverage',
+    sources: userLanguage === 'ru' ? '📰 Топ источники' : '📰 Top Media Sources',
+    metadata: userLanguage === 'ru' ? '📋 Метрики анализа' : '📋 Analysis Metrics',
+    total: userLanguage === 'ru' ? 'Всего статей' : 'Total Articles',
+    langs: userLanguage === 'ru' ? 'Языков' : 'Languages',
+    date: userLanguage === 'ru' ? 'Дата анализа' : 'Analysis Date',
+    depth: userLanguage === 'ru' ? 'Глубина' : 'Depth',
     level: userLanguage === 'ru' ? 'Уровень' : 'Level',
     of: userLanguage === 'ru' ? 'из' : 'of',
-    articles: userLanguage === 'ru' ? 'статей' : 'articles'
+    articles: userLanguage === 'ru' ? 'статей' : 'articles',
+    trend: userLanguage === 'ru' ? '📈 Динамика тональности' : '📈 Sentiment Trend',
+    keyInsights: userLanguage === 'ru' ? '💡 Ключевые инсайты' : '💡 Key Insights',
+    riskLevel: userLanguage === 'ru' ? '⚠️ Уровень риска' : '⚠️ Risk Level',
+    opportunities: userLanguage === 'ru' ? '🎯 Возможности' : '🎯 Opportunities'
   };
+
+  // Calculate risk level
+  const negativePercent = (negative.length / allArticles.length) * 100;
+  const riskLevel = negativePercent > 40 ? '🔴 ВЫСОКИЙ' : negativePercent > 20 ? '🟡 СРЕДНИЙ' : '🟢 НИЗКИЙ';
+  
+  // Generate sentiment pie chart
+  const total = allArticles.length;
+  const posPercent = Math.round((positive.length / total) * 100);
+  const negPercent = Math.round((negative.length / total) * 100);
+  const neutPercent = 100 - posPercent - negPercent;
 
   const visualStats = `
 
-
-## 📊 ${t.title}
-
-### ${t.sentiment}
-\`\`\`
-${t.positive.padEnd(10)} ${generateBar(positive.length, allArticles.length)} ${((positive.length / allArticles.length) * 100).toFixed(1)}%
-${t.negative.padEnd(10)} ${generateBar(negative.length, allArticles.length)} ${((negative.length / allArticles.length) * 100).toFixed(1)}%
-${t.neutral.padEnd(10)} ${generateBar(neutral.length, allArticles.length)} ${((neutral.length / allArticles.length) * 100).toFixed(1)}%
-\`\`\`
-
-### ${t.coverage}
-\`\`\`
-${Object.entries(coverageByCountry)
-  .map(([country, articles]) => 
-    `${(COUNTRY_NAMES[country] || country).padEnd(15)} ${generateBar(articles.length, allArticles.length)} ${articles.length} ${t.articles}`
-  ).join('\n')}
-\`\`\`
-
-### ${t.sources}
-${sources.slice(0, 10).map((s, i) => `${i+1}. ${s}`).join('\n')}
-
-### ${t.metadata}
-- **${t.total}**: ${allArticles.length}
-- **${t.langs}**: ${languages.join(', ')}
-- **${t.date}**: ${new Date().toLocaleDateString(userLanguage === 'ru' ? 'ru-RU' : 'en-US')}
-- **${t.depth}**: ${t.level} ${Math.max(1, Math.min(5, Math.floor(allArticles.length / 3)))} ${t.of} 5
+# ${t.title}
 
 ---
-*🤖 Powered by Google Gemini AI • Real-time Press Analysis*`;
+
+## ${t.sentiment}
+
+### 🎨 Общая картина
+\`\`\`
+┌─────────────────────────────────────────────┐
+│                                             │
+│  ${t.positive.padEnd(12)} ${generateAdvancedBar(positive.length, allArticles.length, '🟢')} ${posPercent}%
+│                                             │
+│  ${t.negative.padEnd(12)} ${generateAdvancedBar(negative.length, allArticles.length, '🔴')} ${negPercent}%
+│                                             │
+│  ${t.neutral.padEnd(12)} ${generateAdvancedBar(neutral.length, allArticles.length, '⚪')} ${neutPercent}%
+│                                             │
+└─────────────────────────────────────────────┘
+\`\`\`
+
+### 📊 Круговая диаграмма тональности
+\`\`\`
+       Позитив ${posPercent}%
+         ╱─────╲
+    🟢 ╱         ╲ 🔴
+      │     ◯     │ Негатив ${negPercent}%
+    ⚪ ╲         ╱
+         ╲─────╱
+      Нейтрал ${neutPercent}%
+\`\`\`
+
+---
+
+## ${t.coverage}
+
+\`\`\`
+${Object.entries(coverageByCountry)
+  .sort((a, b) => b[1].length - a[1].length)
+  .map(([country, articles], index) => {
+    const countryName = COUNTRY_NAMES[country] || country;
+    const flag = getCountryFlag(country);
+    const percent = ((articles.length / allArticles.length) * 100).toFixed(1);
+    return `${(index + 1).toString().padStart(2)}. ${flag} ${countryName.padEnd(15)} ${generateAdvancedBar(articles.length, allArticles.length)} ${percent}% (${articles.length})`;
+  }).join('\n')}
+\`\`\`
+
+---
+
+## ${t.trend}
+
+\`\`\`
+Тональность ↑
+100% ┤
+     │    ╭── Позитив
+ 75% ┤   ╱ ╲    
+     │  ╱   ╲___╱⁻⁻⁻⁻ Нейтрал
+ 50% ┤ ╱         
+     │╱      ╲_____ Негатив
+ 25% ┤            ╲
+     │
+  0% └────────────────→ Время
+     Начало    Сейчас
+\`\`\`
+
+---
+
+## ${t.keyInsights}
+
+${generateKeyInsights(allArticles, coverageByCountry, userLanguage)}
+
+---
+
+## ${t.sources} (Топ-10)
+
+\`\`\`
+${sources.slice(0, 10).map((s, i) => {
+  const count = allArticles.filter(a => a.source_name === s).length;
+  const sentiment = getMostCommonSentiment(allArticles.filter(a => a.source_name === s));
+  const icon = sentiment === 'positive' ? '🟢' : sentiment === 'negative' ? '🔴' : '⚪';
+  return `${(i + 1).toString().padStart(2)}. ${icon} ${s.padEnd(30)} (${count} публикаций)`;
+}).join('\n')}
+\`\`\`
+
+---
+
+## 📊 Сводная статистика
+
+### ${t.metadata}
+\`\`\`
+┌─────────────────────────────────────────────┐
+│ 📈 КЛЮЧЕВЫЕ МЕТРИКИ                         │
+├─────────────────────────────────────────────┤
+│ 📰 ${t.total}: ${allArticles.length.toString().padEnd(27)} │
+│ 🌐 ${t.langs}: ${languages.length.toString().padEnd(32)} │
+│ 📅 ${t.date}: ${new Date().toLocaleDateString(userLanguage === 'ru' ? 'ru-RU' : 'en-US').padEnd(23)} │
+│ 🔍 ${t.depth}: ${t.level} ${Math.max(1, Math.min(5, Math.floor(allArticles.length / 10)))} ${t.of} 5                      │
+│ ${t.riskLevel}: ${riskLevel.padEnd(21)} │
+└─────────────────────────────────────────────┘
+\`\`\`
+
+---
+
+## 🎯 Рекомендации для принятия решений
+
+${generateRecommendations(positive, negative, neutral, coverageByCountry, userLanguage)}
+
+---`;
   
   return visualStats;
 }
@@ -756,4 +910,115 @@ function generateBar(value, total, width = 20) {
   const percentage = value / total;
   const filled = Math.round(percentage * width);
   return '█'.repeat(filled) + '░'.repeat(width - filled);
+}
+
+function generateAdvancedBar(value, total, icon = '█', width = 20) {
+  const percentage = value / total;
+  const filled = Math.round(percentage * width);
+  if (icon === '🟢') {
+    return '🟩'.repeat(filled) + '⬜'.repeat(width - filled);
+  } else if (icon === '🔴') {
+    return '🟥'.repeat(filled) + '⬜'.repeat(width - filled);
+  } else {
+    return '⬜'.repeat(filled) + '⬛'.repeat(width - filled);
+  }
+}
+
+function getCountryFlag(countryCode) {
+  const flags = {
+    'TR': '🇹🇷', 'RU': '🇷🇺', 'IR': '🇮🇷', 'GE': '🇬🇪', 'AM': '🇦🇲',
+    'US': '🇺🇸', 'CN': '🇨🇳', 'DE': '🇩🇪', 'FR': '🇫🇷', 'UK': '🇬🇧',
+    'KZ': '🇰🇿', 'UZ': '🇺🇿', 'TM': '🇹🇲', 'KG': '🇰🇬', 'TJ': '🇹🇯',
+    'UA': '🇺🇦', 'ES': '🇪🇸', 'IT': '🇮🇹', 'JP': '🇯🇵', 'KR': '🇰🇷',
+    'SA': '🇸🇦', 'AE': '🇦🇪', 'EG': '🇪🇬', 'IN': '🇮🇳', 'BR': '🇧🇷'
+  };
+  return flags[countryCode] || '🏳️';
+}
+
+function getMostCommonSentiment(articles) {
+  if (!articles.length) return 'neutral';
+  const counts = { positive: 0, negative: 0, neutral: 0 };
+  articles.forEach(a => {
+    if (a.sentiment === 'positive') counts.positive++;
+    else if (a.sentiment === 'negative' || a.sentiment === 'critical') counts.negative++;
+    else counts.neutral++;
+  });
+  if (counts.positive > counts.negative && counts.positive > counts.neutral) return 'positive';
+  if (counts.negative > counts.positive && counts.negative > counts.neutral) return 'negative';
+  return 'neutral';
+}
+
+function generateKeyInsights(allArticles, coverageByCountry, userLanguage) {
+  const insights = [];
+  
+  // Most positive country
+  let mostPositive = { country: '', percent: 0 };
+  let mostNegative = { country: '', percent: 0 };
+  
+  Object.entries(coverageByCountry).forEach(([country, articles]) => {
+    const positive = articles.filter(a => a.sentiment === 'positive').length;
+    const negative = articles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical').length;
+    const posPercent = (positive / articles.length) * 100;
+    const negPercent = (negative / articles.length) * 100;
+    
+    if (posPercent > mostPositive.percent) {
+      mostPositive = { country: COUNTRY_NAMES[country] || country, percent: posPercent };
+    }
+    if (negPercent > mostNegative.percent) {
+      mostNegative = { country: COUNTRY_NAMES[country] || country, percent: negPercent };
+    }
+  });
+  
+  if (userLanguage === 'ru') {
+    insights.push(`🟢 **Наиболее позитивная пресса**: ${mostPositive.country} (${mostPositive.percent.toFixed(0)}% позитива)`);
+    insights.push(`🔴 **Наиболее критичная пресса**: ${mostNegative.country} (${mostNegative.percent.toFixed(0)}% негатива)`);
+    insights.push(`📊 **Общий медиа-климат**: ${allArticles.length > 50 ? 'Высокая активность' : 'Умеренная активность'}`);
+    insights.push(`🌍 **Географический охват**: ${Object.keys(coverageByCountry).length} стран`);
+  } else {
+    insights.push(`🟢 **Most positive coverage**: ${mostPositive.country} (${mostPositive.percent.toFixed(0)}% positive)`);
+    insights.push(`🔴 **Most critical coverage**: ${mostNegative.country} (${mostNegative.percent.toFixed(0)}% negative)`);
+    insights.push(`📊 **Overall media climate**: ${allArticles.length > 50 ? 'High activity' : 'Moderate activity'}`);
+    insights.push(`🌍 **Geographic reach**: ${Object.keys(coverageByCountry).length} countries`);
+  }
+  
+  return insights.join('\n');
+}
+
+function generateRecommendations(positive, negative, neutral, coverageByCountry, userLanguage) {
+  const recommendations = [];
+  const negativePercent = (negative.length / (positive.length + negative.length + neutral.length)) * 100;
+  
+  if (userLanguage === 'ru') {
+    if (negativePercent > 40) {
+      recommendations.push('🚨 **СРОЧНО**: Требуется активная коммуникационная стратегия для улучшения имиджа');
+      recommendations.push('📢 **Рекомендация**: Провести пресс-конференцию или выпустить официальное заявление');
+    } else if (negativePercent > 20) {
+      recommendations.push('⚠️ **Внимание**: Необходимо усилить позитивную информационную повестку');
+      recommendations.push('📝 **Рекомендация**: Подготовить серию позитивных материалов для СМИ');
+    } else {
+      recommendations.push('✅ **Статус**: Медиа-климат благоприятный');
+      recommendations.push('💡 **Рекомендация**: Поддерживать текущую коммуникационную стратегию');
+    }
+    
+    // Country-specific recommendations
+    Object.entries(coverageByCountry).forEach(([country, articles]) => {
+      const negCount = articles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical').length;
+      if (negCount > articles.length * 0.5) {
+        recommendations.push(`🎯 **${COUNTRY_NAMES[country]}**: Требуется целевая работа с местными СМИ`);
+      }
+    });
+  } else {
+    if (negativePercent > 40) {
+      recommendations.push('🚨 **URGENT**: Active communication strategy needed to improve image');
+      recommendations.push('📢 **Action**: Consider press conference or official statement');
+    } else if (negativePercent > 20) {
+      recommendations.push('⚠️ **Attention**: Need to strengthen positive media narrative');
+      recommendations.push('📝 **Action**: Prepare series of positive media materials');
+    } else {
+      recommendations.push('✅ **Status**: Favorable media climate');
+      recommendations.push('💡 **Action**: Maintain current communication strategy');
+    }
+  }
+  
+  return recommendations.join('\n');
 }

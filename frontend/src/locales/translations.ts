@@ -93,12 +93,20 @@ export const translations = {
     login_with_email: "Continue with Email",
     or_continue_with: "or continue with",
     chat_placeholder: "Ask about press coverage of Azerbaijan...",
-    select_preset_or_ask: "Select a preset or type your own question",
+    select_preset_or_ask: "Choose a region to monitor or ask your own question",
     tip_ask_anything: "Tip: You can ask about any country's press coverage of Azerbaijan in any time period",
     
     // Additional preset group ids (matching constants.ts)
     european_union: "European Union",
     global_powers: "Global Powers",
+    turkic_world: "Turkic World",
+    central_asia: "Central Asia",
+    caspian_states: "Caspian States",
+    eastern_europe: "Eastern Europe",
+    nordic_baltic: "Nordic+Baltic",
+    gulf_states: "Gulf States",
+    brics: "BRICS",
+    post_soviet: "Post-Soviet",
     
     // Chat history sidebar
     chat_history: "Chat History",
@@ -111,7 +119,13 @@ export const translations = {
     last_7_days: "Last 7 days",
     last_30_days: "Last 30 days",
     chat: "chat",
-    chats: "chats"
+    chats: "chats",
+    cancel: "Cancel",
+    last_week: "Last week",
+    last_month: "Last month",
+    select_date_range: "Select date range",
+    select_date_range_desc: "Choose the period for press analysis",
+    start_analysis: "Start analysis"
   },
   
   ru: {
@@ -208,12 +222,20 @@ export const translations = {
     login_with_email: "Продолжить с Email",
     or_continue_with: "или войти через",
     chat_placeholder: "Спросите о прессе об Азербайджане...",
-    select_preset_or_ask: "Выберите шаблон или задайте свой вопрос",
+    select_preset_or_ask: "Выберите регион для мониторинга или задайте свой вопрос",
     tip_ask_anything: "Совет: Вы можете спросить о прессе любой страны об Азербайджане за любой период",
     
     // Additional preset group ids (matching constants.ts)
     european_union: "Европейский союз",
     global_powers: "Мировые державы",
+    turkic_world: "Тюркский мир",
+    central_asia: "Центральная Азия",
+    caspian_states: "Каспийские государства",
+    eastern_europe: "Восточная Европа",
+    nordic_baltic: "Северная Европа",
+    gulf_states: "Страны Залива",
+    brics: "БРИКС",
+    post_soviet: "Постсоветские",
     
     // Chat history sidebar
     chat_history: "История чатов",
@@ -226,7 +248,13 @@ export const translations = {
     last_7_days: "Последние 7 дней",
     last_30_days: "Последние 30 дней",
     chat: "чат",
-    chats: "чатов"
+    chats: "чатов",
+    cancel: "Отмена",
+    last_week: "Неделя",
+    last_month: "Месяц",
+    select_date_range: "Выберите период",
+    select_date_range_desc: "Выберите период для анализа прессы",
+    start_analysis: "Начать анализ"
   },
 
   az: {
@@ -323,12 +351,20 @@ export const translations = {
     login_with_email: "Email ilə davam et",
     or_continue_with: "və ya davam et",
     chat_placeholder: "Azərbaycan haqqında mətbuat əhatəsi barədə soruşun...",
-    select_preset_or_ask: "Şablon seçin və ya öz sualınızı yazın",
+    select_preset_or_ask: "Monitorinq üçün region seçin və ya öz sualınızı verin",
     tip_ask_anything: "Məsləhət: İstənilən ölkənin Azərbaycan haqqında mətbuatını istənilən dövr üçün soruşa bilərsiniz",
     
     // Additional preset group ids (matching constants.ts)
     european_union: "Avropa İttifaqı",
     global_powers: "Qlobal güclər",
+    turkic_world: "Türk dünyası",
+    central_asia: "Mərkəzi Asiya",
+    caspian_states: "Xəzər dövlətləri",
+    eastern_europe: "Şərqi Avropa",
+    nordic_baltic: "Şimal+Baltik",
+    gulf_states: "Körfəz dövlətləri",
+    brics: "BRİKS",
+    post_soviet: "Postsovet",
     
     // Chat history sidebar
     chat_history: "Söhbət tarixçəsi",
@@ -438,12 +474,20 @@ export const translations = {
     login_with_email: "Email ile Devam Et",
     or_continue_with: "veya şununla devam et",
     chat_placeholder: "Azerbaycan hakkında basın kapsamını sorun...",
-    select_preset_or_ask: "Bir şablon seçin veya kendi sorunuzu yazın",
+    select_preset_or_ask: "İzleme için bir bölge seçin veya kendi sorunuzu sorun",
     tip_ask_anything: "İpucu: Herhangi bir ülkenin Azerbaycan hakkındaki basın yayınlarını herhangi bir dönem için sorabilirsiniz",
     
     // Additional preset group ids (matching constants.ts)
     european_union: "Avrupa Birliği",
     global_powers: "Küresel Güçler",
+    turkic_world: "Türk Dünyası",
+    central_asia: "Orta Asya",
+    caspian_states: "Hazar Devletleri",
+    eastern_europe: "Doğu Avrupa",
+    nordic_baltic: "Kuzey+Baltık",
+    gulf_states: "Körfez Ülkeleri",
+    brics: "BRICS",
+    post_soviet: "Eski Sovyet",
     
     // Chat history sidebar
     chat_history: "Sohbet Geçmişi",

@@ -2,6 +2,7 @@ import React from 'react';
 import { Message } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { User, Bot } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 interface ChatMessageProps {
   message: Message;
@@ -37,7 +38,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         </div>
         <Card className="p-4">
           <div className="font-semibold mb-1">{message.sender.name}</div>
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          {isAI ? (
+            <MarkdownRenderer content={message.content} />
+          ) : (
+            <div className="whitespace-pre-wrap">{message.content}</div>
+          )}
           {message.metadata?.sources && (
             <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">
               <div className="font-medium mb-1">Sources:</div>

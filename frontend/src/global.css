@@ -281,3 +281,55 @@ body {
 .dark body {
   background: linear-gradient(135deg, var(--azerbaijan-royal-blue) 0%, var(--azerbaijan-dark-blue) 50%, #001a2e 100%);
 }
+
+/* Custom styles for markdown rendering */
+.prose pre {
+  @apply bg-muted/50 border border-border rounded-lg p-4 overflow-x-auto;
+}
+
+.prose pre code {
+  @apply text-sm font-mono;
+}
+
+.prose code {
+  @apply px-1.5 py-0.5 rounded bg-muted text-sm font-mono;
+}
+
+.prose h1 {
+  @apply text-3xl font-bold mb-6 mt-8 text-primary;
+}
+
+.prose h2 {
+  @apply text-2xl font-semibold mb-4 mt-6 text-primary/90;
+}
+
+.prose h3 {
+  @apply text-xl font-medium mb-3 mt-4;
+}
+
+.prose strong {
+  @apply font-semibold text-foreground;
+}
+
+.prose em {
+  @apply italic text-muted-foreground;
+}
+
+.prose hr {
+  @apply my-6 border-border;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-primary/30 pl-4 my-4 italic;
+}
+
+/* Animation for progress bars */
+@keyframes progress-fill {
+  from {
+    width: 0;
+  }
+}
+
+.progress-bar {
+  animation: progress-fill 1s ease-out forwards;
+}
