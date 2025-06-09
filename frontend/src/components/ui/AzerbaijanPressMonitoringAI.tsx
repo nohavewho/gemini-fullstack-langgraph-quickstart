@@ -204,7 +204,10 @@ export function AzerbaijanPressMonitoringAI() {
           userLanguage: language
         });
         
-        const response = await fetch('/api/press-monitor-working', {
+        const streamingSupported = selectedModel === 'gemini-2.0-flash' && effortLevel >= 3;
+        const endpoint = streamingSupported ? '/api/press-monitor-stream' : '/api/press-monitor-working';
+        
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -235,29 +238,107 @@ export function AzerbaijanPressMonitoringAI() {
           throw new Error(`Failed to get analysis: ${response.status}`);
         }
 
-        // Get the response
-        const data = await response.json();
-        
-        if (data.success) {
-          // Create AI message with result
-          const aiMessage = {
+        // Handle streaming response if supported
+        if (streamingSupported && response.headers.get('content-type')?.includes('event-stream')) {
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let streamingMessage = {
             id: Math.random().toString(36).substring(2, 11),
             role: 'assistant' as const,
-            content: data.result || 'Press monitoring completed.',
+            content: '',
             createdAt: new Date()
           };
-          setMessages(prev => [...prev, aiMessage]);
           
-          // Save to session
-          if (sessionToUse) {
-            await addMessage('ai', aiMessage.content, {
-              targetCountries: [targetCountry],
-              selectedCountries,
-              dateRange: date
-            });
+          // Add initial streaming message
+          setMessages(prev => [...prev, streamingMessage]);
+          
+          let progressContent = '';
+          let buffer = '';
+          
+          while (reader) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                const eventType = line.substring(6).trim();
+              } else if (line.startsWith('data:')) {
+                try {
+                  const data = JSON.parse(line.substring(5));
+                  
+                  // Update progress content based on event type
+                  if (data.type === 'start' || data.type === 'analyzing') {
+                    progressContent = `🔍 ${data.message}`;
+                  } else if (data.type === 'country_start') {
+                    progressContent += `\n\n${data.message}`;
+                  } else if (data.type === 'queries_generated') {
+                    progressContent += `\n  • ${data.message}`;
+                  } else if (data.type === 'article_found') {
+                    progressContent += `\n  • Found: "${data.title}" - ${data.source}`;
+                  } else if (data.type === 'country_complete') {
+                    progressContent += `\n  ${data.message}`;
+                  } else if (data.type === 'generating_digest') {
+                    progressContent += `\n\n📊 ${data.message}`;
+                  } else if (data.type === 'complete') {
+                    // Final result
+                    streamingMessage.content = data.digest;
+                    setMessages(prev => prev.map(m => 
+                      m.id === streamingMessage.id ? streamingMessage : m
+                    ));
+                    
+                    // Save to session
+                    if (sessionToUse) {
+                      await addMessage('ai', streamingMessage.content, {
+                        targetCountries: [targetCountry],
+                        selectedCountries,
+                        dateRange: date
+                      });
+                    }
+                    return;
+                  }
+                  
+                  // Update streaming message with progress
+                  if (data.type !== 'complete') {
+                    streamingMessage.content = progressContent;
+                    setMessages(prev => prev.map(m => 
+                      m.id === streamingMessage.id ? { ...streamingMessage } : m
+                    ));
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e);
+                }
+              }
+            }
           }
         } else {
-          throw new Error(data.error || 'Failed to get press monitor results');
+          // Handle regular JSON response
+          const data = await response.json();
+          
+          if (data.success) {
+            // Create AI message with result
+            const aiMessage = {
+              id: Math.random().toString(36).substring(2, 11),
+              role: 'assistant' as const,
+              content: data.result || 'Press monitoring completed.',
+              createdAt: new Date()
+            };
+            setMessages(prev => [...prev, aiMessage]);
+            
+            // Save to session
+            if (sessionToUse) {
+              await addMessage('ai', aiMessage.content, {
+                targetCountries: [targetCountry],
+                selectedCountries,
+                dateRange: date
+              });
+            }
+          } else {
+            throw new Error(data.error || 'Failed to get press monitor results');
+          }
         }
       } catch (error) {
         console.error('Error calling Press Monitor API:', error);

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Press Monitor API Debug</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #f0f0f0;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .response {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .error {
+            color: #ff6b6b;
+        }
+        .success {
+            color: #51cf66;
+        }
+        .loading {
+            color: #ffd93d;
+        }
+        input, select {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #f0f0f0;
+            padding: 8px;
+            margin: 5px;
+            border-radius: 3px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Press Monitor API Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Test Query</h2>
+        <input type="text" id="searchQuery" value="казахстан об украине за вчера" style="width: 400px;">
+        <select id="model">
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-2.5-flash-preview-04-17">Gemini 2.5 Flash Preview</option>
+        </select>
+        <select id="language">
+            <option value="ru">Russian</option>
+            <option value="en">English</option>
+        </select>
+        <button onclick="testDebugEndpoint()">Test Debug Endpoint</button>
+        <button onclick="testMainEndpoint()">Test Main Endpoint</button>
+        <button onclick="testStreamEndpoint()">Test Stream Endpoint</button>
+    </div>
+
+    <div class="section">
+        <h2>Response</h2>
+        <div id="response" class="response">Click a button to test...</div>
+    </div>
+
+    <script>
+        const baseUrl = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000/api' 
+            : '/api';
+
+        function updateResponse(content, isError = false) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.className = 'response ' + (isError ? 'error' : 'success');
+            responseDiv.textContent = content;
+        }
+
+        async function testDebugEndpoint() {
+            updateResponse('Testing debug endpoint...', false);
+            
+            const searchQuery = document.getElementById('searchQuery').value;
+            const model = document.getElementById('model').value;
+            const language = document.getElementById('language').value;
+            
+            try {
+                const response = await fetch(`${baseUrl}/test-press-monitor`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        searchQuery,
+                        selectedModel: model,
+                        userLanguage: language,
+                        effortLevel: 3,
+                        mode: 'custom'
+                    })
+                });
+
+                const data = await response.json();
+                updateResponse(JSON.stringify(data, null, 2), !data.success);
+            } catch (error) {
+                updateResponse(`Error: ${error.message}`, true);
+            }
+        }
+
+        async function testMainEndpoint() {
+            updateResponse('Testing main endpoint...', false);
+            
+            const searchQuery = document.getElementById('searchQuery').value;
+            const model = document.getElementById('model').value;
+            const language = document.getElementById('language').value;
+            
+            try {
+                const response = await fetch(`${baseUrl}/press-monitor-working`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mode: 'custom',
+                        options: {},
+                        effortLevel: 3,
+                        model: model,
+                        searchQuery: searchQuery,
+                        userLanguage: language
+                    })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    updateResponse(`HTTP ${response.status}: ${text}`, true);
+                    return;
+                }
+
+                const data = await response.json();
+                updateResponse(JSON.stringify(data, null, 2), !data.success);
+            } catch (error) {
+                updateResponse(`Error: ${error.message}\n${error.stack}`, true);
+            }
+        }
+
+        async function testStreamEndpoint() {
+            updateResponse('Testing stream endpoint...\n', false);
+            
+            const searchQuery = document.getElementById('searchQuery').value;
+            const model = document.getElementById('model').value;
+            const language = document.getElementById('language').value;
+            
+            try {
+                const response = await fetch(`${baseUrl}/press-monitor-stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mode: 'custom',
+                        options: {},
+                        effortLevel: 3,
+                        model: model,
+                        searchQuery: searchQuery,
+                        userLanguage: language
+                    })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    updateResponse(`HTTP ${response.status}: ${text}`, true);
+                    return;
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullResponse = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                            try {
+                                const data = JSON.parse(line.substring(5));
+                                fullResponse += `[${new Date().toISOString()}] ${JSON.stringify(data)}\n`;
+                                updateResponse(fullResponse, false);
+                            } catch (e) {
+                                // Ignore parse errors
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                updateResponse(`Error: ${error.message}\n${error.stack}`, true);
+            }
+        }
+
+        // Test on load
+        window.onload = () => {
+            console.log('Debug tool loaded. Base URL:', baseUrl);
+        };
+    </script>
+</body>
+</html>

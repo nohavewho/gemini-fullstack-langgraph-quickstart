@@ -29,7 +29,8 @@ const LANGUAGE_NAMES = {
   'uz': 'Uzbek',
   'tk': 'Turkmen',
   'ky': 'Kyrgyz',
-  'tg': 'Tajik'
+  'tg': 'Tajik',
+  'uk': 'Ukrainian'
 };
 
 // Country name mappings
@@ -48,7 +49,17 @@ const COUNTRY_NAMES = {
   "UZ": "Uzbekistan",
   "TM": "Turkmenistan",
   "KG": "Kyrgyzstan",
-  "TJ": "Tajikistan"
+  "TJ": "Tajikistan",
+  "UA": "Ukraine",
+  "UK": "United Kingdom",
+  "IN": "India",
+  "PK": "Pakistan",
+  "ES": "Spain",
+  "IT": "Italy",
+  "PT": "Portugal",
+  "JP": "Japan",
+  "KR": "South Korea",
+  "SA": "Saudi Arabia"
 };
 
 // Country configurations with sources and topics
@@ -96,6 +107,14 @@ const COUNTRY_SOURCES = {
   'UZ': {
     sources: ["O'zbekiston", "Kun.uz", "Daryo", "Gazeta.uz", "Podrobno.uz"],
     topics: ['regional cooperation', 'trade routes', 'cultural ties', 'investment']
+  },
+  'UA': {
+    sources: ['Українська правда', 'УНІАН', 'Інтерфакс-Україна', 'Укрінформ', 'Liga.net', 'НВ'],
+    topics: ['war updates', 'international support', 'economy', 'diplomacy', 'security']
+  },
+  'UK': {
+    sources: ['BBC News', 'The Guardian', 'The Times', 'Financial Times', 'The Telegraph', 'Reuters UK'],
+    topics: ['international relations', 'finance', 'politics', 'security', 'economy']
   }
 };
 
@@ -124,13 +143,16 @@ Extract:
 2. SOURCE countries (what countries' media to search IN) - use ISO codes
 
 Examples:
-- "What does Armenia think about Azerbaijan?" → Target: [AZ], Source: [AM]
-- "How is Turkey covered in Russian media?" → Target: [TR], Source: [RU]
-- "Azerbaijan news from neighbors" → Target: [AZ], Source: [TR, RU, IR, GE, AM]
-- "что пишут об Азербайджане в Армении" → Target: [AZ], Source: [AM]
+- "What does Armenia think about Azerbaijan?" → Target: ["AZ"], Source: ["AM"]
+- "How is Turkey covered in Russian media?" → Target: ["TR"], Source: ["RU"]
+- "Azerbaijan news from neighbors" → Target: ["AZ"], Source: ["TR", "RU", "IR", "GE", "AM"]
+- "что пишут об Азербайджане в Армении" → Target: ["AZ"], Source: ["AM"]
+- "казахстан об украине" → Target: ["UA"], Source: ["KZ"]
+- "казахстан об украине за вчера" → Target: ["UA"], Source: ["KZ"]
 
 Country codes: AZ=Azerbaijan, AM=Armenia, GE=Georgia, TR=Turkey, RU=Russia, IR=Iran, 
-US=USA, CN=China, DE=Germany, FR=France, KZ=Kazakhstan, UZ=Uzbekistan
+US=USA, CN=China, DE=Germany, FR=France, KZ=Kazakhstan, UZ=Uzbekistan, UA=Ukraine,
+UK=United Kingdom, IN=India, ES=Spain, IT=Italy, JP=Japan, KR=South Korea
 
 Return JSON:
 {
@@ -173,6 +195,8 @@ export default async function handler(request) {
   }
 
   try {
+    console.log('Press monitor API called');
+    
     const body = await request.json();
     const { 
       mode = 'neighbors_priority', 
@@ -183,7 +207,8 @@ export default async function handler(request) {
       userLanguage = 'en'
     } = body;
 
-    console.log('Press monitor request:', { mode, effortLevel, searchQuery, userLanguage });
+    console.log('Press monitor request body:', JSON.stringify(body));
+    console.log('Parsed params:', { mode, effortLevel, searchQuery, userLanguage, model });
 
     // Parse user query to extract target countries if specified
     let targetCountries = ['AZ']; // Default to Azerbaijan
@@ -191,24 +216,34 @@ export default async function handler(request) {
     
     // AI-powered query understanding
     if (searchQuery) {
-      const queryAnalysis = await analyzeUserQuery(
-        searchQuery, 
-        process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
-        model
-      );
-      if (queryAnalysis.targetCountries.length > 0) {
-        targetCountries = queryAnalysis.targetCountries;
-      }
-      if (queryAnalysis.sourceCountries.length > 0) {
-        sourceCountries = queryAnalysis.sourceCountries;
+      console.log('Analyzing user query:', searchQuery);
+      try {
+        const queryAnalysis = await analyzeUserQuery(
+          searchQuery, 
+          process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
+          model
+        );
+        console.log('Query analysis result:', queryAnalysis);
+        if (queryAnalysis.targetCountries && queryAnalysis.targetCountries.length > 0) {
+          targetCountries = queryAnalysis.targetCountries;
+        }
+        if (queryAnalysis.sourceCountries && queryAnalysis.sourceCountries.length > 0) {
+          sourceCountries = queryAnalysis.sourceCountries;
+        }
+      } catch (error) {
+        console.error('Error analyzing query:', error);
+        // Continue with defaults if query analysis fails
       }
     }
+    console.log('After query analysis - Target:', targetCountries, 'Source:', sourceCountries);
+    
     // Calculate articles based on effort level
     const articlesPerLanguage = Math.min(5, effortLevel + 2); // 3-5 articles per language
-    const maxLanguages = Math.min(sourceCountries.length, 3); // Max 3 languages
+    const maxLanguages = Math.min(sourceCountries.length || 5, 3); // Max 3 languages
 
     // Map mode to source countries if not extracted from query
     if (sourceCountries.length === 0) {
+      console.log('No source countries from query, using mode:', mode);
       switch (mode) {
       case 'neighbors_priority':
         sourceCountries = ['TR', 'RU', 'IR', 'GE', 'AM'];
@@ -223,16 +258,20 @@ export default async function handler(request) {
         sourceCountries = ['CN', 'JP', 'KR', 'IN'];
         break;
       case 'custom':
-        if (options.languages) {
+        if (options.languages && options.languages.length > 0) {
           const langToCountry = {
             'tr': 'TR', 'ru': 'RU', 'fa': 'IR', 'ka': 'GE', 'hy': 'AM',
             'kk': 'KZ', 'uz': 'UZ', 'tk': 'TM', 'ky': 'KG', 'tg': 'TJ',
             'de': 'DE', 'fr': 'FR', 'en': 'US', 'zh': 'CN', 'ja': 'JP',
-            'ko': 'KR', 'ar': 'SA', 'es': 'ES', 'pt': 'PT', 'it': 'IT'
+            'ko': 'KR', 'ar': 'SA', 'es': 'ES', 'pt': 'PT', 'it': 'IT',
+            'uk': 'UA'
           };
           sourceCountries = options.languages
             .map(lang => langToCountry[lang] || 'US')
             .filter((v, i, a) => a.indexOf(v) === i);
+        } else if (sourceCountries.length === 0) {
+          // If custom mode but no languages or source countries from query, use defaults
+          sourceCountries = ['US', 'UK', 'RU', 'TR', 'DE'];
         }
         break;
       default:
@@ -241,6 +280,14 @@ export default async function handler(request) {
     }
 
     // Run the press monitoring with selected languages only
+    console.log('Running press monitor with:', {
+      targetCountries,
+      sourceCountries: sourceCountries.slice(0, maxLanguages),
+      articlesPerLanguage,
+      model,
+      userLanguage
+    });
+    
     const result = await runPressMonitor(
       targetCountries, 
       sourceCountries.slice(0, maxLanguages),
@@ -249,6 +296,8 @@ export default async function handler(request) {
       userLanguage,
       searchQuery
     );
+    
+    console.log('Press monitor completed, returning result');
     
     return new Response(JSON.stringify({
       success: true,
@@ -350,7 +399,7 @@ function getCountryLanguageCode(countryCode) {
     "GE": "ka", "AM": "hy", "KZ": "kk", "UZ": "uz",
     "TM": "tk", "KG": "ky", "TJ": "tg", "ES": "es",
     "IT": "it", "PT": "pt", "JP": "ja", "KR": "ko",
-    "SA": "ar", "IN": "hi", "PK": "ur"
+    "SA": "ar", "IN": "hi", "PK": "ur", "UA": "uk"
   };
   return countryLanguageMap[countryCode] || "en";
 }

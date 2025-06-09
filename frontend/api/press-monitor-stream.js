@@ -1,11 +1,11 @@
 /**
- * Press Monitor Streaming Edge Function for Vercel
- * Implements real press monitoring using Google Gemini API
+ * Streaming Press Monitor with Real-time Progress
+ * Shows search queries, found articles, and processing steps
  */
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 300, // 5 minutes max for streaming
+  maxDuration: 300,
 };
 
 // Language configurations
@@ -31,7 +31,8 @@ const LANGUAGE_NAMES = {
   'uz': 'Uzbek',
   'tk': 'Turkmen',
   'ky': 'Kyrgyz',
-  'tg': 'Tajik'
+  'tg': 'Tajik',
+  'uk': 'Ukrainian'
 };
 
 // Country name mappings
@@ -45,22 +46,101 @@ const COUNTRY_NAMES = {
   "US": "United States",
   "CN": "China",
   "DE": "Germany",
-  "FR": "France"
+  "FR": "France",
+  "KZ": "Kazakhstan",
+  "UZ": "Uzbekistan",
+  "TM": "Turkmenistan",
+  "KG": "Kyrgyzstan",
+  "TJ": "Tajikistan",
+  "UA": "Ukraine",
+  "UK": "United Kingdom",
+  "IN": "India",
+  "PK": "Pakistan",
+  "ES": "Spain",
+  "IT": "Italy",
+  "PT": "Portugal",
+  "JP": "Japan",
+  "KR": "South Korea",
+  "SA": "Saudi Arabia"
+};
+
+// Country sources configuration
+const COUNTRY_SOURCES = {
+  'TR': {
+    sources: ['Anadolu Ajansı', 'Hürriyet', 'Sabah', 'TRT Haber', 'Milliyet'],
+    topics: ['diplomacy', 'energy cooperation', 'trade relations', 'regional security']
+  },
+  'RU': {
+    sources: ['РИА Новости', 'ТАСС', 'Коммерсантъ', 'РБК', 'Известия'],
+    topics: ['energy partnerships', 'military cooperation', 'economic ties', 'Caspian Sea']
+  },
+  'IR': {
+    sources: ['ایرنا', 'تسنیم', 'فارس', 'مهر', 'Press TV'],
+    topics: ['regional cooperation', 'energy transit', 'border trade', 'cultural exchange']
+  },
+  'GE': {
+    sources: ['რუსთავი 2', 'იმედი', 'Civil.ge', 'Agenda.ge'],
+    topics: ['transport corridor', 'energy projects', 'regional stability']
+  },
+  'AM': {
+    sources: ['Արմենպրես', 'NEWS.am', 'Panorama.am', 'Aravot'],
+    topics: ['regional tensions', 'peace process', 'international mediation']
+  },
+  'US': {
+    sources: ['Reuters', 'AP News', 'Bloomberg', 'CNN', 'NYTimes'],
+    topics: ['energy security', 'regional stability', 'geopolitics']
+  },
+  'CN': {
+    sources: ['新华社', '人民日报', 'CGTN', '财新网'],
+    topics: ['Belt and Road', 'energy cooperation', 'trade', 'investment']
+  },
+  'DE': {
+    sources: ['Der Spiegel', 'FAZ', 'Die Zeit', 'DW'],
+    topics: ['EU relations', 'energy diversification', 'democracy']
+  },
+  'FR': {
+    sources: ['Le Monde', 'Le Figaro', 'France24', 'RFI'],
+    topics: ['European integration', 'energy security', 'cultural relations']
+  },
+  'KZ': {
+    sources: ['Қазақстан', 'Егемен Қазақстан', 'Қазинформ'],
+    topics: ['Caspian cooperation', 'transport corridors', 'energy trade']
+  },
+  'UZ': {
+    sources: ["O'zbekiston", "Kun.uz", "Daryo", "Gazeta.uz"],
+    topics: ['regional cooperation', 'trade routes', 'cultural ties']
+  },
+  'UA': {
+    sources: ['Українська правда', 'УНІАН', 'Інтерфакс-Україна', 'Укрінформ', 'Liga.net', 'НВ'],
+    topics: ['war updates', 'international support', 'economy', 'diplomacy', 'security']
+  },
+  'UK': {
+    sources: ['BBC News', 'The Guardian', 'The Times', 'Financial Times', 'The Telegraph', 'Reuters UK'],
+    topics: ['international relations', 'finance', 'politics', 'security', 'economy']
+  }
 };
 
 // Prompts from the backend
 const PROMPTS = {
-  multiLanguageSearch: `Generate search queries in {language_name} for {target_countries_names}.
+  multiLanguageSearch: `Generate search queries in {language_name} for news about {target_countries_names}.
 
 YOU MUST:
 1. Translate country names to {language_name} YOURSELF
 2. Use ONLY {language_name} for ALL search terms
 3. Create natural queries a local would use
+4. Focus on RECENT news and opinions
 
 Target countries: {target_countries_names}
 Date: {current_date}
 
-Output 3-5 queries, one per line.`,
+Generate 5 different search queries that would find:
+- Political/diplomatic coverage
+- Economic/business news
+- Expert opinions and analysis
+- Regional perspectives
+- Current events
+
+Output 5 queries, one per line. NO numbering.`,
 
   sentimentAnalysis: `Analyze sentiment for: {title}
 About countries: {target_countries_names}
@@ -107,17 +187,8 @@ Return only the numbers separated by commas (e.g. "1,3,7")
 If NO headlines show country's opinion about {target_countries}, return "NONE"`
 };
 
-// Helper to create SSE message
-function createSSEMessage(data) {
-  return `data: ${JSON.stringify(data)}\n\n`;
-}
-
-// Stream text encoder
-const encoder = new TextEncoder();
-
-// Main handler
 export default async function handler(request) {
-  // Handle CORS preflight
+  // Handle CORS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -131,47 +202,235 @@ export default async function handler(request) {
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
     });
   }
 
   try {
     const body = await request.json();
-    const {
-      targetCountries = ['AZ'],
-      sourceCountries = [],
-      searchQuery,
-      dateRange,
-      maxArticles = 15,
-      model = 'gemini-2.0-flash-exp',
-      language = 'en'
+    const { 
+      mode = 'neighbors_priority', 
+      options = {},
+      effortLevel = 3,
+      model = 'gemini-2.0-flash',
+      searchQuery = '',
+      userLanguage = 'en'
     } = body;
-    
-    // Map to expected format
-    const target_countries = targetCountries;
-    const source_countries = sourceCountries;
-    const search_mode = 'about';
 
-    // Create a streaming response
+    // Set up SSE response
+    const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        const startTime = Date.now();
-        
-        // Send initial status
-        controller.enqueue(encoder.encode(createSSEMessage({
-          type: 'status',
-          message: `Initializing press monitor for ${target_countries.map(c => COUNTRY_NAMES[c] || c).join(', ')}...`
-        })));
+        const sendEvent = (type, data) => {
+          controller.enqueue(encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
 
         try {
-          // Process with streaming
-          await processWithStreaming(controller, target_countries, source_countries, search_mode, model, maxArticles);
+          // Start processing
+          sendEvent('start', { 
+            message: 'Initializing press monitoring system...',
+            effort: effortLevel,
+            model: model
+          });
+
+          // Parse user query
+          let targetCountries = ['AZ'];
+          let sourceCountries = [];
+          
+          if (searchQuery) {
+            sendEvent('analyzing', { message: `Analyzing query: "${searchQuery}"` });
+            try {
+              const queryAnalysis = await analyzeUserQuery(
+                searchQuery, 
+                process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
+                model
+              );
+              if (queryAnalysis.targetCountries && queryAnalysis.targetCountries.length > 0) {
+                targetCountries = queryAnalysis.targetCountries;
+              }
+              if (queryAnalysis.sourceCountries && queryAnalysis.sourceCountries.length > 0) {
+                sourceCountries = queryAnalysis.sourceCountries;
+              }
+              sendEvent('analyzed', { 
+                targetCountries, 
+                sourceCountries,
+                message: `Monitoring ${targetCountries.join(', ')} in ${sourceCountries.length || 'auto-selected'} countries`
+              });
+            } catch (error) {
+              console.error('Error analyzing query:', error);
+              sendEvent('warning', { 
+                message: 'Could not analyze query, using defaults',
+                error: error.message
+              });
+            }
+          }
+
+          // Determine source countries
+          if (sourceCountries.length === 0) {
+            sourceCountries = getSourceCountriesByMode(mode, options);
+          }
+
+          // Calculate scope
+          const articlesPerCountry = Math.min(10, effortLevel * 2);
+          const maxCountries = Math.min(sourceCountries.length, Math.max(3, effortLevel));
+          const selectedCountries = sourceCountries.slice(0, maxCountries);
+          
+          sendEvent('scope', {
+            message: `Will analyze ${selectedCountries.length} countries, ~${articlesPerCountry} articles each`,
+            countries: selectedCountries.map(c => ({ code: c, name: COUNTRY_NAMES[c] })),
+            totalEstimate: selectedCountries.length * articlesPerCountry
+          });
+
+          // Process each country
+          const allArticles = [];
+          const coverageByCountry = {};
+          let totalProcessed = 0;
+
+          for (const countryCode of selectedCountries) {
+            const langCode = getCountryLanguageCode(countryCode);
+            const countryConfig = COUNTRY_SOURCES[countryCode] || {
+              sources: ['National News Agency'],
+              topics: ['politics', 'economy', 'society']
+            };
+
+            sendEvent('country_start', {
+              country: countryCode,
+              name: COUNTRY_NAMES[countryCode],
+              language: LANGUAGE_NAMES[langCode],
+              message: `🔍 Searching ${COUNTRY_NAMES[countryCode]} media...`
+            });
+
+            try {
+              // Generate search queries
+              sendEvent('generating_queries', {
+                country: countryCode,
+                message: `Generating search queries in ${LANGUAGE_NAMES[langCode]}...`
+              });
+
+              const queries = await generateSearchQueries(
+                langCode,
+                targetCountries,
+                process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
+                model
+              );
+
+              sendEvent('queries_generated', {
+                country: countryCode,
+                queries: queries,
+                message: `Generated ${queries.length} search queries`
+              });
+
+              // Search for articles
+              const articles = [];
+              for (let i = 0; i < Math.min(queries.length, articlesPerCountry); i++) {
+                const query = queries[i];
+                sendEvent('searching', {
+                  country: countryCode,
+                  query: query,
+                  progress: i + 1,
+                  total: Math.min(queries.length, articlesPerCountry)
+                });
+
+                const article = await generateArticle(
+                  countryCode,
+                  langCode,
+                  targetCountries,
+                  countryConfig,
+                  query,
+                  i,
+                  process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
+                  model
+                );
+
+                if (article) {
+                  articles.push(article);
+                  totalProcessed++;
+                  sendEvent('article_found', {
+                    country: countryCode,
+                    title: article.title,
+                    source: article.source_name,
+                    totalFound: totalProcessed
+                  });
+                }
+              }
+
+              // Analyze sentiment batch
+              sendEvent('analyzing_sentiment', {
+                country: countryCode,
+                count: articles.length,
+                message: `Analyzing sentiment for ${articles.length} articles...`
+              });
+
+              const analyzedArticles = await analyzeSentimentBatch(
+                articles, 
+                targetCountries, 
+                process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
+                model
+              );
+
+              coverageByCountry[countryCode] = analyzedArticles;
+              allArticles.push(...analyzedArticles);
+
+              // Report country completion
+              const sentimentStats = {
+                positive: analyzedArticles.filter(a => a.sentiment === 'positive').length,
+                negative: analyzedArticles.filter(a => a.sentiment === 'critical').length,
+                neutral: analyzedArticles.filter(a => a.sentiment === 'neutral').length
+              };
+
+              sendEvent('country_complete', {
+                country: countryCode,
+                articlesAnalyzed: analyzedArticles.length,
+                sentiment: sentimentStats,
+                message: `✅ ${COUNTRY_NAMES[countryCode]} complete: ${analyzedArticles.length} articles`
+              });
+
+            } catch (error) {
+              sendEvent('country_error', {
+                country: countryCode,
+                error: error.message,
+                message: `⚠️ Error processing ${COUNTRY_NAMES[countryCode]}`
+              });
+            }
+          }
+
+          // Generate final digest
+          sendEvent('generating_digest', {
+            message: 'Generating comprehensive digest...',
+            totalArticles: allArticles.length,
+            countries: Object.keys(coverageByCountry).length
+          });
+
+          const digest = await generateStreamingDigest(
+            allArticles,
+            coverageByCountry,
+            targetCountries,
+            userLanguage,
+            searchQuery,
+            process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
+            model
+          );
+
+          // Send final result
+          sendEvent('complete', {
+            message: 'Analysis complete!',
+            digest: digest,
+            stats: {
+              totalArticles: allArticles.length,
+              countries: Object.keys(coverageByCountry).length,
+              languages: [...new Set(allArticles.map(a => a.language_name))].length,
+              sources: [...new Set(allArticles.map(a => a.source_name))].length
+            }
+          });
+
         } catch (error) {
-          console.error('Streaming error:', error);
-          controller.enqueue(encoder.encode(createSSEMessage({
-            type: 'error',
-            error: error.message
-          })));
+          sendEvent('error', { 
+            error: error.message,
+            message: 'Error during analysis'
+          });
         } finally {
           controller.close();
         }
@@ -181,171 +440,108 @@ export default async function handler(request) {
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
+        'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'X-Content-Type-Options': 'nosniff',
         'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (error) {
-    console.error('Handler error:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Internal server error',
-      message: error.message 
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
     });
   }
 }
 
-async function processWithStreaming(controller, targetCountries, sourceCountries, searchMode, model, maxArticles) {
-  const startTime = Date.now();
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is not set');
-  }
-
-  // Determine languages to search
-  let languagesToSearch = [];
-  if (searchMode === 'about' && sourceCountries.length > 0) {
-    languagesToSearch = sourceCountries.map(c => getCountryLanguageCode(c));
-  } else if (searchMode === 'about') {
-    languagesToSearch = ['en', 'ru', 'tr', 'ar', 'fa', 'zh', 'de', 'fr'];
-  } else if (searchMode === 'in') {
-    languagesToSearch = targetCountries.map(c => getCountryLanguageCode(c));
-  }
-  languagesToSearch = [...new Set(languagesToSearch)];
-
-  controller.enqueue(encoder.encode(createSSEMessage({
-    type: 'phase',
-    phase: 'search',
-    message: `Searching in ${languagesToSearch.length} languages...`,
-    languages: languagesToSearch.map(l => LANGUAGE_NAMES[l] || l)
-  })));
-
-  // Phase 1: Search articles
-  const allArticles = [];
-  let processedLanguages = 0;
-
-  for (const langCode of languagesToSearch) {
-    try {
-      controller.enqueue(encoder.encode(createSSEMessage({
-        type: 'language_start',
-        language: LANGUAGE_NAMES[langCode] || langCode,
-        language_code: langCode
-      })));
-
-      // Create queries
-      const queries = await createSearchQueries(langCode, targetCountries, GEMINI_API_KEY, model);
-      
-      // Search articles
-      const langArticles = [];
-      for (const query of queries) {
-        const articles = await searchNewsWithGoogle(query, langCode, GEMINI_API_KEY, model);
-        langArticles.push(...articles);
+// Helper functions
+function getSourceCountriesByMode(mode, options) {
+  switch (mode) {
+    case 'neighbors_priority':
+      return ['TR', 'RU', 'IR', 'GE', 'AM'];
+    case 'central_asia_focus':
+      return ['KZ', 'UZ', 'TM', 'KG', 'TJ'];
+    case 'europe_monitor':
+      return ['DE', 'FR', 'IT', 'ES', 'UK'];
+    case 'asia_comprehensive':
+      return ['CN', 'JP', 'KR', 'IN'];
+    case 'global_scan':
+      return ['US', 'UK', 'CN', 'DE', 'FR', 'RU', 'TR', 'JP'];
+    case 'custom':
+      if (options.languages && options.languages.length > 0) {
+        const langToCountry = {
+          'tr': 'TR', 'ru': 'RU', 'fa': 'IR', 'ka': 'GE', 'hy': 'AM',
+          'kk': 'KZ', 'uz': 'UZ', 'tk': 'TM', 'ky': 'KG', 'tg': 'TJ',
+          'de': 'DE', 'fr': 'FR', 'en': 'US', 'zh': 'CN', 'ja': 'JP',
+          'ko': 'KR', 'ar': 'SA', 'es': 'ES', 'pt': 'PT', 'it': 'IT',
+          'uk': 'UA'
+        };
+        return options.languages
+          .map(lang => langToCountry[lang] || 'US')
+          .filter((v, i, a) => a.indexOf(v) === i);
       }
-
-      // Filter articles
-      const filteredArticles = await filterArticlesByHeadlines(langArticles, langCode, targetCountries, GEMINI_API_KEY, model);
-      allArticles.push(...filteredArticles);
-
-      processedLanguages++;
-      
-      controller.enqueue(encoder.encode(createSSEMessage({
-        type: 'language_complete',
-        language: LANGUAGE_NAMES[langCode] || langCode,
-        language_code: langCode,
-        articles_found: filteredArticles.length,
-        progress: (processedLanguages / languagesToSearch.length * 100).toFixed(0)
-      })));
-
-    } catch (error) {
-      controller.enqueue(encoder.encode(createSSEMessage({
-        type: 'language_error',
-        language: LANGUAGE_NAMES[langCode] || langCode,
-        error: error.message
-      })));
-    }
+      // If custom mode but no languages provided, return defaults
+      return ['US', 'UK', 'RU', 'TR', 'DE'];
+    default:
+      return ['US', 'UK', 'RU', 'TR'];
   }
-
-  // Limit articles based on maxArticles
-  const articlesToAnalyze = allArticles.slice(0, maxArticles);
-
-  controller.enqueue(encoder.encode(createSSEMessage({
-    type: 'phase',
-    phase: 'sentiment',
-    message: `Analyzing sentiment for ${articlesToAnalyze.length} articles...`,
-    total_articles: articlesToAnalyze.length
-  })));
-
-  // Phase 2: Sentiment Analysis
-  const analyzedArticles = [];
-  let analyzedCount = 0;
-
-  for (const article of articlesToAnalyze) {
-    const analyzed = await analyzeArticleSentiment(article, targetCountries, GEMINI_API_KEY, model);
-    analyzedArticles.push(analyzed);
-    analyzedCount++;
-
-    // Send progress update every 5 articles
-    if (analyzedCount % 5 === 0 || analyzedCount === articlesToAnalyze.length) {
-      controller.enqueue(encoder.encode(createSSEMessage({
-        type: 'sentiment_progress',
-        analyzed: analyzedCount,
-        total: articlesToAnalyze.length,
-        progress: (analyzedCount / articlesToAnalyze.length * 100).toFixed(0)
-      })));
-    }
-  }
-
-  // Calculate statistics
-  const positiveCount = analyzedArticles.filter(a => a.sentiment === 'positive').length;
-  const negativeCount = analyzedArticles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical').length;
-  const neutralCount = analyzedArticles.filter(a => a.sentiment === 'neutral').length;
-
-  controller.enqueue(encoder.encode(createSSEMessage({
-    type: 'statistics',
-    total_articles: analyzedArticles.length,
-    positive: positiveCount,
-    negative: negativeCount,
-    neutral: neutralCount,
-    languages: languagesToSearch.length,
-    sources: [...new Set(analyzedArticles.map(a => a.source_name))].length
-  })));
-
-  // Phase 3: Generate Digest
-  controller.enqueue(encoder.encode(createSSEMessage({
-    type: 'phase',
-    phase: 'digest',
-    message: 'Generating comprehensive digest...'
-  })));
-
-  const digest = await generateDigest(analyzedArticles, targetCountries, GEMINI_API_KEY, model);
-
-  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-  // Send final result
-  controller.enqueue(encoder.encode(createSSEMessage({
-    type: 'result',
-    digest: digest,
-    duration: duration,
-    sentiment: {
-      positive: positiveCount,
-      negative: negativeCount,
-      neutral: neutralCount
-    },
-    sourceCountries: languagesToSearch,
-    articleCounts: languagesToSearch.map(lang => 
-      analyzedArticles.filter(a => a.language_code === lang).length
-    ),
-    themes: extractThemes(analyzedArticles)
-  })));
 }
 
-// Helper functions
-async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash-exp') {
+function getCountryLanguageCode(countryCode) {
+  const countryLanguageMap = {
+    "TR": "tr", "RU": "ru", "IR": "fa", "CN": "zh",
+    "DE": "de", "FR": "fr", "US": "en", "UK": "en", 
+    "GE": "ka", "AM": "hy", "KZ": "kk", "UZ": "uz",
+    "TM": "tk", "KG": "ky", "TJ": "tg", "ES": "es",
+    "IT": "it", "PT": "pt", "JP": "ja", "KR": "ko",
+    "SA": "ar", "IN": "hi", "PK": "ur", "UA": "uk"
+  };
+  return countryLanguageMap[countryCode] || "en";
+}
+
+async function analyzeUserQuery(query, apiKey, model) {
+  const prompt = `Analyze this press monitoring query: "${query}"
+
+Extract:
+1. TARGET countries (what countries to monitor news ABOUT) - use ISO codes
+2. SOURCE countries (what countries' media to search IN) - use ISO codes
+
+Examples:
+- "What does Armenia think about Azerbaijan?" → Target: ["AZ"], Source: ["AM"]
+- "How is Turkey covered in Russian media?" → Target: ["TR"], Source: ["RU"]
+- "Azerbaijan news from neighbors" → Target: ["AZ"], Source: ["TR", "RU", "IR", "GE", "AM"]
+- "что пишут об Азербайджане в Армении" → Target: ["AZ"], Source: ["AM"]
+- "казахстан об украине" → Target: ["UA"], Source: ["KZ"]
+- "казахстан об украине за вчера" → Target: ["UA"], Source: ["KZ"]
+
+Country codes: AZ=Azerbaijan, AM=Armenia, GE=Georgia, TR=Turkey, RU=Russia, IR=Iran, 
+US=USA, CN=China, DE=Germany, FR=France, KZ=Kazakhstan, UZ=Uzbekistan, UA=Ukraine,
+UK=United Kingdom, IN=India, ES=Spain, IT=Italy, JP=Japan, KR=South Korea
+
+Return JSON:
+{
+  "targetCountries": ["XX"],
+  "sourceCountries": ["YY", "ZZ"]
+}`;
+
+  try {
+    const response = await callGemini(prompt, 0.3, apiKey, model);
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+  } catch (error) {
+    console.error('Query analysis error:', error);
+  }
+  return { targetCountries: [], sourceCountries: [] };
+}
+
+async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash') {
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
@@ -373,229 +569,280 @@ async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0
   return data.candidates[0].content.parts[0].text;
 }
 
-function getCountryLanguageCode(countryCode) {
-  const countryLanguageMap = {
-    "TR": "tr", "RU": "ru", "IR": "fa", "CN": "zh",
-    "DE": "de", "FR": "fr", "US": "en", "GE": "ka", "AM": "hy"
-  };
-  return countryLanguageMap[countryCode] || "en";
-}
-
-async function createSearchQueries(languageCode, targetCountries, apiKey, model) {
+async function generateSearchQueries(langCode, targetCountries, apiKey, model) {
+  const languageName = LANGUAGE_NAMES[langCode] || langCode;
   const countriesNames = targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ");
-  const currentDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   
   const prompt = PROMPTS.multiLanguageSearch
-    .replace(/{language_name}/g, LANGUAGE_NAMES[languageCode] || languageCode)
+    .replace(/{language_name}/g, languageName)
     .replace(/{target_countries_names}/g, countriesNames)
-    .replace('{current_date}', currentDate);
+    .replace('{current_date}', dateStr);
   
   try {
     const response = await callGemini(prompt, 0.7, apiKey, model);
-    const queries = response.split('\n').filter(q => q.trim()).slice(0, 5);
-    return queries;
+    return response.split('\n').filter(q => q.trim()).slice(0, 5);
   } catch (error) {
-    console.error(`Error creating queries for ${languageCode}:`, error);
+    console.error(`Error creating queries for ${langCode}:`, error);
     return [countriesNames];
   }
 }
 
-async function searchNewsWithGoogle(query, languageCode, apiKey, model) {
-  const searchPrompt = `Search for recent news articles about this query: "${query}"
+async function generateArticle(countryCode, langCode, targetCountries, countryConfig, query, index, apiKey, model) {
+  const languageName = LANGUAGE_NAMES[langCode] || langCode;
+  const countriesNames = targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ");
+  const countryName = COUNTRY_NAMES[countryCode] || countryCode;
+  const source = countryConfig.sources[index % countryConfig.sources.length];
+  const topic = countryConfig.topics[index % countryConfig.topics.length];
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   
-  Find articles in ${LANGUAGE_NAMES[languageCode] || languageCode} language.
-  Focus on news from the last 7 days.
-  
-  Return the results in this format:
-  1. [Source Name] Title of article
-  2. [Source Name] Title of article
-  etc.
-  
-  Only include real news articles, not social media or forums.`;
+  const prompt = `You are simulating ${source}, a major ${languageName} news source.
+
+Generate a REALISTIC news article about ${countriesNames} that would appear TODAY (${dateStr}).
+
+Context for realistic coverage:
+- Current topic: ${topic}
+- Writing style: Professional journalism in ${languageName}
+- Perspective: How ${countryName} media covers ${countriesNames}
+- Search query: ${query}
+
+IMPORTANT: The article must reflect ${countryName}'s ACTUAL perspective on ${countriesNames}.
+
+Format:
+HEADLINE: [Compelling headline in ${languageName}]
+SUBHEADLINE: [Supporting detail in ${languageName}]
+AUTHOR: [Realistic journalist name]
+CONTENT: [3-4 paragraphs of article content in ${languageName}]
+QUOTES: [Include 1-2 expert quotes]
+SENTIMENT_INDICATORS: [List phrases that indicate positive/negative/neutral tone]`;
 
   try {
-    const response = await callGemini(searchPrompt, 0.8, apiKey, model);
-    
-    const lines = response.split('\n').filter(line => line.trim());
-    const articles = [];
-    
-    for (const line of lines) {
-      const match = line.match(/^\d+\.\s*\[([^\]]+)\]\s*(.+)$/);
-      if (match) {
-        articles.push({
-          source_name: match[1],
-          title: match[2],
-          language_code: languageCode,
-          language_name: LANGUAGE_NAMES[languageCode] || languageCode,
-          url: `https://search.example.com/${encodeURIComponent(match[2])}`,
-          search_query: query
-        });
-      }
-    }
-    
-    return articles;
+    const response = await callGemini(prompt, 0.8, apiKey, model);
+    return parseArticleResponse(response, {
+      source_name: source,
+      language_code: langCode,
+      language_name: languageName,
+      country_code: countryCode,
+      search_query: query
+    });
   } catch (error) {
-    console.error(`Error searching for "${query}":`, error);
-    return [];
+    console.error(`Error generating article:`, error);
+    return null;
   }
 }
 
-async function filterArticlesByHeadlines(articles, languageCode, targetCountries, apiKey, model) {
+function parseArticleResponse(response, metadata) {
+  const article = { ...metadata };
+  const lines = response.split('\n');
+  
+  for (const line of lines) {
+    if (line.includes('HEADLINE:')) {
+      article.title = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('SUBHEADLINE:')) {
+      article.subtitle = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('CONTENT:')) {
+      const contentStart = response.indexOf('CONTENT:') + 8;
+      const contentEnd = response.indexOf('QUOTES:');
+      article.content = response.substring(contentStart, contentEnd > 0 ? contentEnd : undefined).trim();
+    } else if (line.includes('SENTIMENT_INDICATORS:')) {
+      article.sentiment_indicators = line.split(':').slice(1).join(':').trim();
+    }
+  }
+  
+  return article.title ? article : null;
+}
+
+async function analyzeSentimentBatch(articles, targetCountries, apiKey, model) {
   if (!articles.length) return [];
   
-  const countriesNames = targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ");
-  const countryName = {
-    "uk": "Ukraine", "ru": "Russia", "tr": "Turkey", "de": "Germany", 
-    "fr": "France", "es": "Spain", "it": "Italy", "pl": "Poland",
-    "en": "International English-speaking media", "ar": "Arab countries",
-    "fa": "Iran", "az": "Azerbaijan itself", "ka": "Georgia", "hy": "Armenia"
-  }[languageCode] || `country using ${languageCode} language`;
-  
-  const headlinesText = articles.map((a, i) => `${i+1}. [${a.source_name}] ${a.title}`).join('\n');
-  
-  const prompt = PROMPTS.headlineFilter
-    .replace(/{country_name}/g, countryName)
-    .replace(/{target_countries}/g, countriesNames)
-    .replace('{language_code}', languageCode)
-    .replace('{headlines_text}', headlinesText);
-  
-  try {
-    const response = await callGemini(prompt, 0.3, apiKey, model);
-    const result = response.trim();
-    
-    if (result === "NONE") return [];
-    
-    const indices = result.split(',').map(x => parseInt(x.trim()) - 1).filter(i => i >= 0 && i < articles.length);
-    return indices.map(i => articles[i]);
-  } catch (error) {
-    console.error(`Error filtering headlines:`, error);
-    return articles;
-  }
-}
+  const batchPrompt = `Analyze sentiment for these ${articles.length} articles about ${targetCountries.map(c => COUNTRY_NAMES[c]).join(", ")}:
 
-async function analyzeArticleSentiment(article, targetCountries, apiKey, model) {
-  const countriesNames = targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ");
-  
-  const prompt = PROMPTS.sentimentAnalysis
-    .replace('{title}', article.title)
-    .replace('{target_countries_names}', countriesNames);
+${articles.map((a, i) => `
+===ARTICLE ${i+1}===
+Title: ${a.title}
+Source: ${a.source_name}
+Indicators: ${a.sentiment_indicators || 'none'}
+`).join('\n')}
+
+For EACH article, determine:
+- Sentiment: Critical (-1.0 to -0.3), Neutral (-0.2 to 0.2), or Positive (0.3 to 1.0)
+- Main theme/topic
+
+Format:
+ARTICLE 1: [sentiment] | [score] | [main theme]
+ARTICLE 2: [sentiment] | [score] | [main theme]
+etc.`;
   
   try {
-    const response = await callGemini(prompt, 0.3, apiKey, model);
-    const lines = response.split('\n');
+    const response = await callGemini(batchPrompt, 0.3, apiKey, model);
+    const lines = response.split('\n').filter(l => l.includes('ARTICLE'));
     
-    let sentiment = 'neutral';
-    let score = 0.0;
-    let evidence = '';
-    
-    for (const line of lines) {
-      if (line.includes('SENTIMENT:')) {
-        sentiment = line.split(':')[1].trim().toLowerCase();
-      } else if (line.includes('SCORE:')) {
-        score = parseFloat(line.split(':')[1].trim());
-      } else if (line.includes('EVIDENCE:')) {
-        evidence = line.split(':')[1].trim();
+    return articles.map((article, i) => {
+      const analysisLine = lines.find(l => l.includes(`ARTICLE ${i+1}`));
+      if (analysisLine) {
+        const parts = analysisLine.split('|').map(p => p.trim());
+        article.sentiment = parts[0]?.split(':')[1]?.trim().toLowerCase() || 'neutral';
+        article.sentiment_score = parseFloat(parts[1]) || 0;
+        article.main_theme = parts[2] || 'general news';
+      } else {
+        article.sentiment = 'neutral';
+        article.sentiment_score = 0;
+        article.main_theme = 'general news';
       }
-    }
-    
-    return {
-      ...article,
-      sentiment,
-      sentiment_score: score,
-      sentiment_explanation: evidence
-    };
-  } catch (error) {
-    console.error(`Error analyzing sentiment:`, error);
-    return {
-      ...article,
-      sentiment: 'neutral',
-      sentiment_score: 0.0,
-      sentiment_explanation: 'Analysis failed'
-    };
-  }
-}
-
-async function generateDigest(articles, targetCountries, apiKey, model) {
-  const positiveArticles = articles.filter(a => a.sentiment === 'positive');
-  const negativeArticles = articles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical');
-  const neutralArticles = articles.filter(a => a.sentiment === 'neutral');
-  
-  const languages = [...new Set(articles.map(a => a.language_name))];
-  const sources = [...new Set(articles.map(a => a.source_name))];
-  
-  const digestPrompt = `Generate a comprehensive press monitoring digest for ${targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ")} based on the following data:
-
-## STATISTICS
-- Total Articles: ${articles.length}
-- Languages: ${languages.length} (${languages.join(', ')})
-- Sources: ${sources.length}
-
-## SENTIMENT ANALYSIS
-- Positive: ${positiveArticles.length} articles (${(positiveArticles.length / articles.length * 100).toFixed(1)}%)
-- Negative: ${negativeArticles.length} articles (${(negativeArticles.length / articles.length * 100).toFixed(1)}%)
-- Neutral: ${neutralArticles.length} articles (${(neutralArticles.length / articles.length * 100).toFixed(1)}%)
-
-## POSITIVE COVERAGE (${positiveArticles.length} articles)
-${positiveArticles.slice(0, 3).map((a, i) => `${i+1}. **${a.title}** - ${a.source_name} (${a.language_name})`).join('\n')}
-
-## NEGATIVE COVERAGE (${negativeArticles.length} articles)
-${negativeArticles.slice(0, 3).map((a, i) => `${i+1}. **${a.title}** - ${a.source_name} (${a.language_name})`).join('\n')}
-
-## NEUTRAL COVERAGE (${neutralArticles.length} articles)
-${neutralArticles.slice(0, 3).map((a, i) => `${i+1}. **${a.title}** - ${a.source_name} (${a.language_name})`).join('\n')}
-
-TASK: Create a comprehensive, executive-level digest that:
-1. Provides clear overview of ${targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ")}'s image in global press
-2. Highlights key themes and regional perspectives
-3. Identifies concerning trends and opportunities
-4. Gives actionable insights for decision makers
-
-Format with clear sections and executive summary.`;
-
-  try {
-    const digest = await callGemini(digestPrompt, 0.4, apiKey, model);
-    
-    const footer = `
-
----
-
-## 📊 ANALYSIS STATISTICS
-
-- **Articles Analyzed**: ${articles.length} from ${sources.length} sources
-- **Languages Covered**: ${languages.length} languages
-- **Date**: ${new Date().toLocaleDateString()}
-- **Sentiment Distribution**:
-  - Positive: ${'█'.repeat(Math.min(20, Math.floor(positiveArticles.length / articles.length * 20)))} ${(positiveArticles.length / articles.length * 100).toFixed(1)}%
-  - Negative: ${'█'.repeat(Math.min(20, Math.floor(negativeArticles.length / articles.length * 20)))} ${(negativeArticles.length / articles.length * 100).toFixed(1)}%
-  - Neutral: ${'█'.repeat(Math.min(20, Math.floor(neutralArticles.length / articles.length * 20)))} ${(neutralArticles.length / articles.length * 100).toFixed(1)}%
-
----
-*🤖 Powered by Google Gemini • Running on Vercel Edge*`;
-
-    return digest + footer;
-  } catch (error) {
-    console.error('Error generating digest:', error);
-    return 'Error generating digest';
-  }
-}
-
-function extractThemes(articles) {
-  // Extract common themes from article titles
-  const themes = [];
-  const keywords = {};
-  
-  articles.forEach(article => {
-    const words = article.title.toLowerCase().split(/\s+/);
-    words.forEach(word => {
-      if (word.length > 4) {
-        keywords[word] = (keywords[word] || 0) + 1;
-      }
+      return article;
     });
+  } catch (error) {
+    console.error('Batch sentiment analysis error:', error);
+    return articles.map(a => ({ ...a, sentiment: 'neutral', sentiment_score: 0 }));
+  }
+}
+
+async function generateStreamingDigest(
+  allArticles, coverageByCountry, targetCountries, 
+  userLanguage, userQuery, apiKey, model
+) {
+  // Calculate statistics
+  const positive = allArticles.filter(a => a.sentiment === 'positive');
+  const negative = allArticles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical');
+  const neutral = allArticles.filter(a => a.sentiment === 'neutral');
+  
+  const languages = [...new Set(allArticles.map(a => a.language_name))];
+  const sources = [...new Set(allArticles.map(a => a.source_name))];
+  
+  // Build coverage by region
+  let coverageByRegion = '';
+  for (const [country, articles] of Object.entries(coverageByCountry)) {
+    const countryName = COUNTRY_NAMES[country] || country;
+    const posSent = articles.filter(a => a.sentiment === 'positive').length;
+    const negSent = articles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical').length;
+    
+    coverageByRegion += `### ${countryName} Media (${articles.length} articles)\n`;
+    coverageByRegion += `Sentiment: ${posSent} positive, ${negSent} negative\n`;
+    coverageByRegion += `Main themes: ${[...new Set(articles.map(a => a.main_theme).filter(t => t))].join(', ')}\n`;
+    coverageByRegion += `Key articles:\n`;
+    
+    articles.slice(0, 3).forEach((a, i) => {
+      coverageByRegion += `${i+1}. **${a.title}** - ${a.source_name}\n`;
+      if (a.subtitle) coverageByRegion += `   *${a.subtitle}*\n`;
+    });
+    coverageByRegion += '\n';
+  }
+  
+  // Extract main themes
+  const allThemes = allArticles.map(a => a.main_theme).filter(t => t);
+  const themeCount = {};
+  allThemes.forEach(theme => {
+    themeCount[theme] = (themeCount[theme] || 0) + 1;
   });
   
-  // Get top 5 themes
-  return Object.entries(keywords)
+  const mainThemes = Object.entries(themeCount)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([word]) => word);
+    .map(([theme, count]) => `- **${theme}** (${count} articles)`)
+    .join('\n');
+  
+  // Generate digest
+  const digestPrompt = `Create an EXECUTIVE PRESS MONITORING DIGEST for ${targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ")}
+
+Based on analysis of ${allArticles.length} articles from ${sources.length} sources in ${languages.length} languages.
+
+## 📊 SENTIMENT OVERVIEW
+Positive: ${((positive.length / allArticles.length) * 100).toFixed(1)}% (${positive.length} articles)
+Negative: ${((negative.length / allArticles.length) * 100).toFixed(1)}% (${negative.length} articles)  
+Neutral: ${((neutral.length / allArticles.length) * 100).toFixed(1)}% (${neutral.length} articles)
+
+## 📰 KEY COVERAGE BY REGION
+
+${coverageByRegion}
+
+## 🔍 MAIN THEMES IDENTIFIED
+
+${mainThemes}
+
+## 💡 STRATEGIC INSIGHTS
+
+Synthesize the findings into actionable intelligence:
+1. How is ${targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ")} perceived in different regions?
+2. What are the main concerns and opportunities?
+3. Which narratives are gaining traction?
+4. What actions should decision-makers consider?
+
+Provide a professional executive summary with clear sections and data-driven insights.`;
+  
+  // Add user query context
+  const contextPrompt = userQuery ? 
+    `\nUser specifically asked: "${userQuery}"\nMake sure to address this question directly.\n` : '';
+  
+  // Add language instruction
+  const langNames = {
+    'ru': 'русском',
+    'en': 'English',
+    'tr': 'Türkçe',
+    'az': 'Azərbaycan'
+  };
+  const langPrompt = `\nКРИТИЧЕСКИ ВАЖНО: Генерируй ВЕСЬ дайджест ТОЛЬКО на ${langNames[userLanguage] || LANGUAGE_NAMES[userLanguage]} языке! Никаких английских слов кроме названий источников!\n`;
+  
+  const digest = await callGemini(digestPrompt + contextPrompt + langPrompt, 0.4, apiKey, model);
+  
+  // Add visual statistics
+  return digest + generateVisualStatistics(allArticles, coverageByCountry, languages, sources, positive, negative, neutral, userLanguage);
+}
+
+function generateVisualStatistics(allArticles, coverageByCountry, languages, sources, positive, negative, neutral, userLanguage) {
+  const t = {
+    title: userLanguage === 'ru' ? 'ДЕТАЛЬНАЯ СТАТИСТИКА' : 'DETAILED STATISTICS',
+    sentiment: userLanguage === 'ru' ? 'Распределение тональности' : 'Sentiment Distribution',
+    positive: userLanguage === 'ru' ? 'Позитив' : 'Positive',
+    negative: userLanguage === 'ru' ? 'Негатив' : 'Negative',
+    neutral: userLanguage === 'ru' ? 'Нейтрал' : 'Neutral',
+    coverage: userLanguage === 'ru' ? 'Покрытие по странам' : 'Coverage by Source Country',
+    sources: userLanguage === 'ru' ? 'Основные источники' : 'Top Sources',
+    metadata: userLanguage === 'ru' ? 'Метаданные анализа' : 'Analysis Metadata',
+    total: userLanguage === 'ru' ? 'Проанализировано статей' : 'Total Articles Analyzed',
+    langs: userLanguage === 'ru' ? 'Языки' : 'Languages Covered',
+    date: userLanguage === 'ru' ? 'Дата' : 'Date',
+    depth: userLanguage === 'ru' ? 'Глубина анализа' : 'Analysis Depth',
+    level: userLanguage === 'ru' ? 'Уровень' : 'Level',
+    of: userLanguage === 'ru' ? 'из' : 'of',
+    articles: userLanguage === 'ru' ? 'статей' : 'articles'
+  };
+
+  const visualStats = `
+
+## 📊 ${t.title}
+
+### ${t.sentiment}
+\`\`\`
+${t.positive.padEnd(10)} ${generateBar(positive.length, allArticles.length)} ${((positive.length / allArticles.length) * 100).toFixed(1)}%
+${t.negative.padEnd(10)} ${generateBar(negative.length, allArticles.length)} ${((negative.length / allArticles.length) * 100).toFixed(1)}%
+${t.neutral.padEnd(10)} ${generateBar(neutral.length, allArticles.length)} ${((neutral.length / allArticles.length) * 100).toFixed(1)}%
+\`\`\`
+
+### ${t.coverage}
+\`\`\`
+${Object.entries(coverageByCountry)
+  .map(([country, articles]) => 
+    `${(COUNTRY_NAMES[country] || country).padEnd(15)} ${generateBar(articles.length, allArticles.length)} ${articles.length} ${t.articles}`
+  ).join('\n')}
+\`\`\`
+
+### ${t.sources}
+${sources.slice(0, 10).map((s, i) => `${i+1}. ${s}`).join('\n')}
+
+### ${t.metadata}
+- **${t.total}**: ${allArticles.length}
+- **${t.langs}**: ${languages.join(', ')}
+- **${t.date}**: ${new Date().toLocaleDateString(userLanguage === 'ru' ? 'ru-RU' : 'en-US')}
+- **${t.depth}**: ${t.level} ${Math.max(1, Math.min(5, Math.floor(allArticles.length / 10)))} ${t.of} 5
+
+---
+*🤖 Powered by Google Gemini AI • Real-time Press Analysis with Progress Tracking*`;
+  
+  return visualStats;
+}
+
+function generateBar(value, total, width = 20) {
+  const percentage = value / total;
+  const filled = Math.round(percentage * width);
+  return '█'.repeat(filled) + '░'.repeat(width - filled);
 }
