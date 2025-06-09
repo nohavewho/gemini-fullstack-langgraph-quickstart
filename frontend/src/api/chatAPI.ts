@@ -1,14 +1,26 @@
-// Simple API functions for chat management
+// API functions for chat management
 export interface ChatSession {
   id: string;
   userId: string;
   title: string;
-  preset?: string;
+  preset?: string | null;
   countries?: string[];
-  queryType?: string;
+  queryType?: string | null;
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+}
+
+export interface MessageMetadata {
+  targetCountries?: string[];
+  selectedCountries?: string[];
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+  };
+  sources?: string[];
+  reasoning?: string[];
+  searchQuery?: string;
 }
 
 export interface ChatMessage {
@@ -16,9 +28,11 @@ export interface ChatMessage {
   sessionId: string;
   type: 'human' | 'ai';
   content: string;
-  metadata?: any;
+  metadata?: MessageMetadata;
   createdAt: string;
 }
+
+const API_BASE = '/api/chat';
 
 export const createSession = async (data: {
   userId: string;
@@ -28,20 +42,14 @@ export const createSession = async (data: {
   queryType?: string;
 }): Promise<ChatSession> => {
   try {
-    const sessions = JSON.parse(localStorage.getItem('chatSessions') || '[]');
+    const response = await fetch(`${API_BASE}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
     
-    const newSession: ChatSession = {
-      id: crypto.randomUUID(),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isActive: true
-    };
-    
-    sessions.unshift(newSession);
-    localStorage.setItem('chatSessions', JSON.stringify(sessions));
-    
-    return newSession;
+    if (!response.ok) throw new Error('Failed to create session');
+    return await response.json();
   } catch (error) {
     console.error('Create session error:', error);
     throw error;
@@ -50,8 +58,9 @@ export const createSession = async (data: {
 
 export const getSessions = async (userId: string): Promise<ChatSession[]> => {
   try {
-    const sessions = JSON.parse(localStorage.getItem('chatSessions') || '[]');
-    return sessions.filter((s: ChatSession) => s.userId === userId);
+    const response = await fetch(`${API_BASE}/sessions?userId=${userId}`);
+    if (!response.ok) throw new Error('Failed to get sessions');
+    return await response.json();
   } catch (error) {
     console.error('Get sessions error:', error);
     return [];
@@ -62,21 +71,22 @@ export const addMessage = async (data: {
   sessionId: string;
   type: 'human' | 'ai';
   content: string;
-  metadata?: any;
+  metadata?: MessageMetadata;
 }): Promise<ChatMessage> => {
   try {
-    const messages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
+    const response = await fetch(`${API_BASE}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: data.sessionId,
+        role: data.type === 'human' ? 'user' : 'assistant',
+        content: data.content,
+        metadata: data.metadata
+      })
+    });
     
-    const newMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      ...data,
-      createdAt: new Date().toISOString()
-    };
-    
-    messages.push(newMessage);
-    localStorage.setItem('chatMessages', JSON.stringify(messages));
-    
-    return newMessage;
+    if (!response.ok) throw new Error('Failed to add message');
+    return await response.json();
   } catch (error) {
     console.error('Add message error:', error);
     throw error;
@@ -85,8 +95,9 @@ export const addMessage = async (data: {
 
 export const getMessages = async (sessionId: string): Promise<ChatMessage[]> => {
   try {
-    const messages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
-    return messages.filter((m: ChatMessage) => m.sessionId === sessionId);
+    const response = await fetch(`${API_BASE}/messages?sessionId=${sessionId}`);
+    if (!response.ok) throw new Error('Failed to get messages');
+    return await response.json();
   } catch (error) {
     console.error('Get messages error:', error);
     return [];
@@ -95,15 +106,11 @@ export const getMessages = async (sessionId: string): Promise<ChatMessage[]> => 
 
 export const deleteSession = async (sessionId: string): Promise<void> => {
   try {
-    // Delete session
-    const sessions = JSON.parse(localStorage.getItem('chatSessions') || '[]');
-    const filteredSessions = sessions.filter((s: ChatSession) => s.id !== sessionId);
-    localStorage.setItem('chatSessions', JSON.stringify(filteredSessions));
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+      method: 'DELETE'
+    });
     
-    // Delete associated messages
-    const messages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
-    const filteredMessages = messages.filter((m: ChatMessage) => m.sessionId !== sessionId);
-    localStorage.setItem('chatMessages', JSON.stringify(filteredMessages));
+    if (!response.ok) throw new Error('Failed to delete session');
   } catch (error) {
     console.error('Delete session error:', error);
     throw error;

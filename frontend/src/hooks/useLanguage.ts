@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // Language mappings
 const LANGUAGES = {
@@ -16,20 +16,27 @@ const LANGUAGES = {
 const DEFAULT_LANGUAGE = 'en';
 
 export function useLanguage() {
-  const [language, setLanguage] = useState<string>(DEFAULT_LANGUAGE);
-
-  useEffect(() => {
-    // Get browser language
+  const [language, setLanguageState] = useState<string>(() => {
+    // First try to get from localStorage
+    const savedLanguage = localStorage.getItem('preferredLanguage');
+    if (savedLanguage && LANGUAGES[savedLanguage]) {
+      return savedLanguage;
+    }
+    
+    // Otherwise use browser language
     const browserLanguage = navigator.language || navigator.languages?.[0] || DEFAULT_LANGUAGE;
-    
-    // Extract language code (e.g., 'en-US' -> 'en')
     const langCode = browserLanguage.split('-')[0].toLowerCase();
-    
-    // Check if we support this language
     const supportedLanguage = LANGUAGES[langCode] || DEFAULT_LANGUAGE;
     
-    setLanguage(supportedLanguage);
-  }, []);
+    // Save to localStorage
+    localStorage.setItem('preferredLanguage', supportedLanguage);
+    return supportedLanguage;
+  });
+
+  const setLanguage = (newLanguage: string) => {
+    setLanguageState(newLanguage);
+    localStorage.setItem('preferredLanguage', newLanguage);
+  };
 
   return { language, setLanguage };
 }

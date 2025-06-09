@@ -16,7 +16,7 @@ export function useChatHistory() {
 
       setIsLoading(true);
       try {
-        const data = await chatAPI.getSessions(dbUser.id);
+        const data = await chatAPI.getSessions(dbUser.auth0Id);
         setSessions(data);
       } catch (error) {
         console.error('Failed to load sessions:', error);
@@ -56,7 +56,7 @@ export function useChatHistory() {
 
     try {
       const newSession = await chatAPI.createSession({
-        userId: dbUser.id,
+        userId: dbUser.auth0Id,
         title,
         preset,
         countries,

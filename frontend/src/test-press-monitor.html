@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Press Monitor API Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            max-height: 600px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .progress {
+            margin-top: 10px;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .positive { color: #10b981; }
+        .negative { color: #ef4444; }
+        .neutral { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Press Monitor API Test</h1>
+        <p>Test the press monitoring functionality running on Vercel Edge Functions</p>
+        
+        <div style="margin: 20px 0;">
+            <label>
+                <strong>Target Countries:</strong>
+                <input type="text" id="targetCountries" value="AZ" style="margin-left: 10px; padding: 5px;">
+                <small>(comma-separated country codes)</small>
+            </label>
+        </div>
+
+        <button id="testNormal" onclick="testNormalAPI()">Test Normal API</button>
+        <button id="testStream" onclick="testStreamingAPI()" style="margin-left: 10px;">Test Streaming API</button>
+        
+        <div id="status"></div>
+        <div class="progress" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="statistics" id="statistics" style="display: none;"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const resultEl = document.getElementById('result');
+        const progressBar = document.getElementById('progressBar');
+        const statisticsEl = document.getElementById('statistics');
+        
+        function updateStatus(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            statusEl.innerHTML += `[${timestamp}] ${message}<br>`;
+            statusEl.scrollTop = statusEl.scrollHeight;
+        }
+
+        function showProgress(value) {
+            progressBar.parentElement.style.display = 'block';
+            progressBar.style.width = value + '%';
+        }
+
+        function showStatistics(stats) {
+            statisticsEl.style.display = 'grid';
+            statisticsEl.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value positive">${stats.positive || 0}</div>
+                    <div class="stat-label">Positive</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value neutral">${stats.neutral || 0}</div>
+                    <div class="stat-label">Neutral</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value negative">${stats.negative || 0}</div>
+                    <div class="stat-label">Negative</div>
+                </div>
+            `;
+        }
+
+        async function testNormalAPI() {
+            statusEl.innerHTML = '';
+            resultEl.innerHTML = '';
+            statisticsEl.style.display = 'none';
+            progressBar.parentElement.style.display = 'none';
+            
+            const button = document.getElementById('testNormal');
+            button.disabled = true;
+            
+            const targetCountries = document.getElementById('targetCountries').value
+                .split(',')
+                .map(c => c.trim())
+                .filter(c => c);
+            
+            updateStatus('Starting press monitor...');
+            updateStatus(`Target countries: ${targetCountries.join(', ')}`);
+            
+            try {
+                const response = await fetch('/api/press-monitor', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        target_countries: targetCountries,
+                        search_mode: 'about'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                updateStatus(`✅ Analysis complete in ${data.statistics.processing_time}`);
+                updateStatus(`Found ${data.statistics.total_articles} articles in ${data.statistics.languages_searched} languages`);
+                
+                showStatistics({
+                    positive: data.statistics.positive_count,
+                    negative: data.statistics.negative_count,
+                    neutral: data.statistics.neutral_count
+                });
+                
+                resultEl.innerHTML = data.digest;
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+                resultEl.innerHTML = `Error: ${error.message}`;
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function testStreamingAPI() {
+            statusEl.innerHTML = '';
+            resultEl.innerHTML = '';
+            statisticsEl.style.display = 'none';
+            progressBar.parentElement.style.display = 'none';
+            
+            const button = document.getElementById('testStream');
+            button.disabled = true;
+            
+            const targetCountries = document.getElementById('targetCountries').value
+                .split(',')
+                .map(c => c.trim())
+                .filter(c => c);
+            
+            updateStatus('Starting streaming press monitor...');
+            updateStatus(`Target countries: ${targetCountries.join(', ')}`);
+            
+            try {
+                const response = await fetch('/api/press-monitor-stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        target_countries: targetCountries,
+                        search_mode: 'about'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                handleStreamData(data);
+                            } catch (e) {
+                                console.error('Error parsing SSE data:', e);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+                resultEl.innerHTML = `Error: ${error.message}`;
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function handleStreamData(data) {
+            switch (data.type) {
+                case 'status':
+                    updateStatus(data.message);
+                    break;
+                    
+                case 'phase':
+                    updateStatus(`📍 Phase: ${data.phase} - ${data.message}`);
+                    if (data.languages) {
+                        updateStatus(`Languages: ${data.languages.join(', ')}`);
+                    }
+                    break;
+                    
+                case 'language_start':
+                    updateStatus(`🔍 Processing ${data.language}...`);
+                    break;
+                    
+                case 'language_complete':
+                    updateStatus(`✅ ${data.language}: Found ${data.articles_found} articles`);
+                    showProgress(parseInt(data.progress));
+                    break;
+                    
+                case 'language_error':
+                    updateStatus(`❌ ${data.language}: Error`);
+                    break;
+                    
+                case 'sentiment_progress':
+                    updateStatus(`📊 Analyzing sentiment: ${data.analyzed}/${data.total}`);
+                    showProgress(parseInt(data.progress));
+                    break;
+                    
+                case 'statistics':
+                    updateStatus(`📈 Statistics received`);
+                    showStatistics(data);
+                    break;
+                    
+                case 'complete':
+                    updateStatus(`✅ Analysis complete in ${data.duration}`);
+                    resultEl.innerHTML = data.digest;
+                    progressBar.parentElement.style.display = 'none';
+                    break;
+                    
+                case 'error':
+                    updateStatus(`❌ Error: ${data.error}`);
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>

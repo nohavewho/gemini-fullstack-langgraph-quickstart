@@ -9,9 +9,7 @@ import App from "./App.tsx";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Auth0Provider
-      domain={auth0Config.domain}
-      clientId={auth0Config.clientId}
-      authorizationParams={auth0Config.authorizationParams}
+      {...auth0Config}
     >
       <BrowserRouter>
         <App />

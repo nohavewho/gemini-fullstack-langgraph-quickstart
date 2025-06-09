@@ -1,12 +1,3 @@
-import { handleAuth, handleLogin, handleLogout, handleCallback, handleProfile } from '@auth0/nextjs-auth0';
-
-export default handleAuth({
-  login: handleLogin({
-    returnTo: '/'
-  }),
-  logout: handleLogout({
-    returnTo: '/'
-  }),
-  callback: handleCallback(),
-  profile: handleProfile()
-});
+// This file is not needed for React SPA implementation
+// Auth0 handling is done through @auth0/auth0-react in AuthContext
+export {};

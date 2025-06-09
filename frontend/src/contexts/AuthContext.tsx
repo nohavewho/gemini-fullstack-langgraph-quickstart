@@ -1,13 +1,24 @@
-import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
+import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { User, NewUser } from '../lib/schema';
+
+interface User {
+  id: string;
+  auth0Id: string;
+  email: string;
+  name?: string;
+  avatar?: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
+  language: string;
+}
 
 interface AuthContextType {
   user: any; // Auth0 user
   dbUser: User | null; // Database user
   isLoading: boolean;
   error?: string;
-  loginWithRedirect: () => void;
+  loginWithRedirect: (options?: any) => void;
   logout: (options?: any) => void;
   isAuthenticated: boolean;
 }
@@ -30,8 +41,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
           const { syncUser } = await import('../api/userSync');
           const userData = await syncUser({
-            auth0Id: user.sub,
-            email: user.email,
+            auth0Id: user.sub || '',
+            email: user.email || '',
             name: user.name,
             avatar: user.picture,
           });
@@ -53,7 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = (options?: any) => {
     auth0Logout({
       logoutParams: {
-        returnTo: window.location.origin
+        returnTo: `${window.location.origin}/login`
       },
       ...options
     });
@@ -64,7 +75,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       dbUser,
       isLoading: isLoading || auth0Loading,
-      error,
+      error: error?.message,
       loginWithRedirect,
       logout,
       isAuthenticated

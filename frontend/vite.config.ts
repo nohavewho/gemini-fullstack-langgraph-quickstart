@@ -19,12 +19,10 @@ export default defineConfig({
       port: 8000,
     },
     proxy: {
-      // Proxy API requests to the backend server
+      // Proxy API requests to mock server in development
       "/api": {
-        target: "http://127.0.0.1:2024", // Backend runs on 2024
+        target: "http://localhost:3001",
         changeOrigin: true,
-        // Optionally rewrite path if needed (e.g., remove /api prefix if backend doesn't expect it)
-        // rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
