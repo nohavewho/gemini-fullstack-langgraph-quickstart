@@ -196,7 +196,7 @@ export function AzerbaijanPressMonitoringAI() {
           mode = 'custom';
         }
 
-        const response = await fetch('/api/press-monitor-full', {
+        const response = await fetch('/api/press-monitor-grounded', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -213,7 +213,9 @@ export function AzerbaijanPressMonitoringAI() {
                 };
                 return countryToLang[code] || 'en';
               })
-            } : {}
+            } : {},
+            effortLevel: effortLevel,
+            model: selectedModel
           })
         });
 
