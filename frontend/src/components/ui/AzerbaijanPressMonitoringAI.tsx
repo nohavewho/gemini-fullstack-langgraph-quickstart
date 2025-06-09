@@ -196,7 +196,7 @@ export function AzerbaijanPressMonitoringAI() {
           mode = 'custom';
         }
 
-        const response = await fetch('/api/press-monitor-grounded', {
+        const response = await fetch('/api/press-monitor-working', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
