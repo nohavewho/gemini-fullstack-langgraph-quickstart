@@ -178,22 +178,42 @@ export function AzerbaijanPressMonitoringAI() {
       };
       setMessages(prev => [...prev, userMessage]);
       
-      // Call real Press Monitor API with streaming
+      // Call real Press Monitor API with original format
       try {
-        const response = await fetch('/api/press-monitor-stream', {
+        // Determine mode based on selected countries
+        let mode = 'neighbors_priority';
+        const countrySet = new Set(selectedCountries);
+        
+        if (countrySet.has('TR') && countrySet.has('RU') && countrySet.has('IR')) {
+          mode = 'neighbors_priority';
+        } else if (countrySet.has('KZ') && countrySet.has('UZ')) {
+          mode = 'central_asia_focus';
+        } else if (countrySet.has('DE') && countrySet.has('FR')) {
+          mode = 'europe_monitor';
+        } else if (selectedCountries.length > 6) {
+          mode = 'global_scan';
+        } else if (selectedCountries.length > 0) {
+          mode = 'custom';
+        }
+
+        const response = await fetch('/api/press-monitor', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            targetCountries: [targetCountry],
-            sourceCountries: selectedCountries,
-            searchQuery: userInput,
-            dateRange: date ? {
-              from: date.from?.toISOString(),
-              to: date.to?.toISOString()
-            } : undefined,
-            maxArticles: effortLevel * 5, // 5-25 articles based on effort
-            model: selectedModel,
-            language
+            mode: mode,
+            options: mode === 'custom' ? {
+              languages: selectedCountries.map(code => {
+                const countryToLang = {
+                  'US': 'en', 'UK': 'en', 'TR': 'tr', 'RU': 'ru', 'IR': 'fa',
+                  'GE': 'ka', 'AM': 'hy', 'KZ': 'kk', 'UZ': 'uz', 'TM': 'tk',
+                  'KG': 'ky', 'TJ': 'tg', 'DE': 'de', 'FR': 'fr', 'CN': 'zh',
+                  'JP': 'ja', 'KR': 'ko', 'SA': 'ar', 'ES': 'es', 'PT': 'pt',
+                  'IT': 'it', 'TH': 'th', 'ID': 'id', 'MY': 'ms', 'VN': 'vi',
+                  'PH': 'tl'
+                };
+                return countryToLang[code] || 'en';
+              })
+            } : {}
           })
         });
 
@@ -201,84 +221,29 @@ export function AzerbaijanPressMonitoringAI() {
           throw new Error('Failed to get analysis');
         }
 
-        // Create AI message for streaming
-        const aiMessageId = Math.random().toString(36).substring(2, 11);
-        const aiMessage = {
-          id: aiMessageId,
-          role: 'assistant' as const,
-          content: '',
-          createdAt: new Date()
-        };
-        setMessages(prev => [...prev, aiMessage]);
-
-        // Process streaming response
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let fullContent = '';
-        let metadata: any = {};
-
-        while (reader) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                if (data.type === 'progress') {
-                  // Update progress in message
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === aiMessageId 
-                      ? { ...msg, content: `${data.message}...` }
-                      : msg
-                  ));
-                } else if (data.type === 'result') {
-                  fullContent = data.digest;
-                  metadata = data;
-                } else if (data.type === 'error') {
-                  throw new Error(data.message);
-                }
-              } catch (e) {
-                console.error('Failed to parse SSE data:', e);
-              }
-            }
+        // Get the response
+        const data = await response.json();
+        
+        if (data.success) {
+          // Create AI message with result
+          const aiMessage = {
+            id: Math.random().toString(36).substring(2, 11),
+            role: 'assistant' as const,
+            content: data.result || 'Press monitoring completed.',
+            createdAt: new Date()
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // Save to session
+          if (sessionToUse) {
+            await addMessage('ai', aiMessage.content, {
+              targetCountries: [targetCountry],
+              selectedCountries,
+              dateRange: date
+            });
           }
-        }
-
-        // Update final message
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessageId 
-            ? { ...msg, content: fullContent || 'No analysis available' }
-            : msg
-        ));
-        
-        // Update analytics if available
-        if (metadata.sentiment) {
-          setAnalysisResults({
-            sentiment: metadata.sentiment,
-            coverage: metadata.sourceCountries?.map((country: string, idx: number) => ({
-              country,
-              articles: metadata.articleCounts?.[idx] || 0
-            })) || [],
-            timeline: [],
-            topics: metadata.themes?.map((theme: string, idx: number) => ({
-              topic: theme,
-              percentage: Math.round(100 / (metadata.themes?.length || 1))
-            })) || []
-          });
-        }
-        
-        if (sessionToUse && fullContent) {
-          addMessage('ai', fullContent, {
-            targetCountries: [targetCountry],
-            selectedCountries,
-            dateRange: date,
-            sources: metadata.sources
-          });
+        } else {
+          throw new Error(data.error || 'Failed to get press monitor results');
         }
       } catch (error) {
         console.error('Error calling LangGraph:', error);
