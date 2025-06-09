@@ -40,7 +40,7 @@ import { getMessages } from "@/api/chatAPI";
 // Main Component
 export function AzerbaijanPressMonitoringAI() {
   const { language, setLanguage, t } = useTranslation();
-  const { user, isAuthenticated, loginWithRedirect, logout, dbUser } = useAuth();
+  const { user, isAuthenticated, loginWithRedirect, logout, dbUser, isLoading: authLoading } = useAuth();
   const [currentLanguage, setCurrentLanguage] = useState(language);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -55,25 +55,25 @@ export function AzerbaijanPressMonitoringAI() {
   const [pressCountriesOpen, setPressCountriesOpen] = useState(false);
   const [showPresets, setShowPresets] = useState(true);
   const [effortLevel, setEffortLevel] = useState<number>(3);
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.0-flash-exp');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.0-flash');
   const [showSettings, setShowSettings] = useState(false);
   
   // Model options with descriptions
   const modelOptions = [
     { 
-      value: 'gemini-2.0-flash-exp', 
+      value: 'gemini-2.0-flash', 
       label: 'Gemini 2.0 Flash', 
       description: 'Fastest model, best for quick insights'
     },
     { 
-      value: 'gemini-1.5-pro', 
-      label: 'Gemini 1.5 Pro', 
-      description: 'Balanced performance and quality'
+      value: 'gemini-2.5-flash-preview-04-17', 
+      label: 'Gemini 2.5 Flash Preview', 
+      description: 'Latest flash model with better quality'
     },
     { 
-      value: 'gemini-1.5-flash', 
-      label: 'Gemini 1.5 Flash', 
-      description: 'Quick responses with good accuracy'
+      value: 'gemini-2.5-pro-preview-05-06', 
+      label: 'Gemini 2.5 Pro Preview', 
+      description: 'Best quality, slower processing'
     }
   ];
   
@@ -290,6 +290,30 @@ export function AzerbaijanPressMonitoringAI() {
     setMessages([]);
     setAnalysisResults(null);
   };
+
+  // Authentication guard - redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      loginWithRedirect();
+    }
+  }, [authLoading, isAuthenticated, loginWithRedirect]);
+
+  // Show loading screen while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex bg-background">

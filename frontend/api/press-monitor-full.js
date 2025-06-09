@@ -138,13 +138,19 @@ export default async function handler(request) {
 
   try {
     const body = await request.json();
-    const { mode = 'neighbors_priority', options = {} } = body;
+    const { 
+      mode = 'neighbors_priority', 
+      options = {},
+      effortLevel = 3,
+      model = 'gemini-2.0-flash',
+      searchQuery
+    } = body;
 
     // Map parameters
     const targetCountries = ['AZ']; // Always Azerbaijan
     let sourceCountries = [];
-    let maxArticles = 20;
-    const model = 'gemini-2.0-flash-exp';
+    // Adjust max articles based on effort level
+    let maxArticles = effortLevel * 5; // 5-25 articles
 
     // Map mode to source countries
     switch (mode) {
@@ -218,7 +224,7 @@ export default async function handler(request) {
 // Main press monitoring logic
 async function runPressMonitor(targetCountries, sourceCountries, maxArticles, model) {
   const startTime = Date.now();
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
   
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
@@ -268,8 +274,23 @@ async function runPressMonitor(targetCountries, sourceCountries, maxArticles, mo
   return digest;
 }
 
+// Helper function for delays
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Track last API call time for rate limiting
+let lastApiCallTime = 0;
+
 // Helper functions
-async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash-exp') {
+async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash') {
+  // Enforce rate limit: 10 requests per minute = minimum 6 seconds between requests
+  const now = Date.now();
+  const timeSinceLastCall = now - lastApiCallTime;
+  if (timeSinceLastCall < 6000) {
+    await delay(6000 - timeSinceLastCall);
+  }
+  lastApiCallTime = Date.now();
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
