@@ -203,9 +203,9 @@ export default async function handler(request) {
         sourceCountries = queryAnalysis.sourceCountries;
       }
     }
-    // Calculate articles based on effort level - REDUCED for speed
-    const articlesPerLanguage = Math.min(3, effortLevel); // 1-3 articles per language
-    const maxLanguages = Math.min(sourceCountries.length, 2); // Max 2 languages to avoid timeout
+    // Calculate articles based on effort level
+    const articlesPerLanguage = Math.min(5, effortLevel + 2); // 3-5 articles per language
+    const maxLanguages = Math.min(sourceCountries.length, 3); // Max 3 languages
 
     // Map mode to source countries if not extracted from query
     if (sourceCountries.length === 0) {
@@ -605,7 +605,13 @@ async function generateComprehensiveDigest(
     `\nUser specifically asked: "${userQuery}"\nMake sure to address this question directly.\n` : '';
   
   // Add language instruction
-  const langPrompt = `\nIMPORTANT: Generate the ENTIRE digest in ${LANGUAGE_NAMES[userLanguage] || userLanguage} language.\n`;
+  const langNames = {
+    'ru': 'русском',
+    'en': 'English',
+    'tr': 'Türkçe',
+    'az': 'Azərbaycan'
+  };
+  const langPrompt = `\nКРИТИЧЕСКИ ВАЖНО: Генерируй ВЕСЬ дайджест ТОЛЬКО на ${langNames[userLanguage] || LANGUAGE_NAMES[userLanguage]} языке! Никаких английских слов кроме названий источников!\n`;
   
   const digest = await callGemini(digestPrompt + contextPrompt + langPrompt, 0.4, apiKey, model);
   
@@ -642,36 +648,54 @@ Synthesize the findings into actionable intelligence:
 Provide a professional executive summary with clear sections and data-driven insights.`;
 }
 
-function generateVisualStatistics(articles, coverageByCountry, languages, sources, positive, negative, neutral) {
+function generateVisualStatistics(allArticles, coverageByCountry, languages, sources, positive, negative, neutral, userLanguage = 'en') {
+  // Translations
+  const t = {
+    title: userLanguage === 'ru' ? 'ДЕТАЛЬНАЯ СТАТИСТИКА' : 'DETAILED STATISTICS',
+    sentiment: userLanguage === 'ru' ? 'Распределение тональности' : 'Sentiment Distribution',
+    positive: userLanguage === 'ru' ? 'Позитив' : 'Positive',
+    negative: userLanguage === 'ru' ? 'Негатив' : 'Negative',
+    neutral: userLanguage === 'ru' ? 'Нейтрал' : 'Neutral',
+    coverage: userLanguage === 'ru' ? 'Покрытие по странам' : 'Coverage by Source Country',
+    sources: userLanguage === 'ru' ? 'Основные источники' : 'Top Sources',
+    metadata: userLanguage === 'ru' ? 'Метаданные анализа' : 'Analysis Metadata',
+    total: userLanguage === 'ru' ? 'Проанализировано статей' : 'Total Articles Analyzed',
+    langs: userLanguage === 'ru' ? 'Языки' : 'Languages Covered',
+    date: userLanguage === 'ru' ? 'Дата' : 'Date',
+    depth: userLanguage === 'ru' ? 'Глубина анализа' : 'Analysis Depth',
+    level: userLanguage === 'ru' ? 'Уровень' : 'Level',
+    of: userLanguage === 'ru' ? 'из' : 'of',
+    articles: userLanguage === 'ru' ? 'статей' : 'articles'
+  };
 
   const visualStats = `
 
 
-## 📊 DETAILED STATISTICS
+## 📊 ${t.title}
 
-### Sentiment Distribution
+### ${t.sentiment}
 \`\`\`
-Positive  ${generateBar(positive.length, articles.length)} ${((positive.length / articles.length) * 100).toFixed(1)}%
-Negative  ${generateBar(negative.length, articles.length)} ${((negative.length / articles.length) * 100).toFixed(1)}%
-Neutral   ${generateBar(neutral.length, articles.length)} ${((neutral.length / articles.length) * 100).toFixed(1)}%
+${t.positive.padEnd(10)} ${generateBar(positive.length, allArticles.length)} ${((positive.length / allArticles.length) * 100).toFixed(1)}%
+${t.negative.padEnd(10)} ${generateBar(negative.length, allArticles.length)} ${((negative.length / allArticles.length) * 100).toFixed(1)}%
+${t.neutral.padEnd(10)} ${generateBar(neutral.length, allArticles.length)} ${((neutral.length / allArticles.length) * 100).toFixed(1)}%
 \`\`\`
 
-### Coverage by Source Country
+### ${t.coverage}
 \`\`\`
 ${Object.entries(coverageByCountry)
   .map(([country, articles]) => 
-    `${(COUNTRY_NAMES[country] || country).padEnd(15)} ${generateBar(articles.length, articles.length)} ${articles.length} articles`
+    `${(COUNTRY_NAMES[country] || country).padEnd(15)} ${generateBar(articles.length, allArticles.length)} ${articles.length} ${t.articles}`
   ).join('\n')}
 \`\`\`
 
-### Top Sources
+### ${t.sources}
 ${sources.slice(0, 10).map((s, i) => `${i+1}. ${s}`).join('\n')}
 
-### Analysis Metadata
-- **Total Articles Analyzed**: ${articles.length}
-- **Languages Covered**: ${languages.join(', ')}
-- **Date**: ${new Date().toLocaleDateString()}
-- **Analysis Depth**: Level ${Math.min(5, Math.floor(articles.length / 10))} of 5
+### ${t.metadata}
+- **${t.total}**: ${allArticles.length}
+- **${t.langs}**: ${languages.join(', ')}
+- **${t.date}**: ${new Date().toLocaleDateString(userLanguage === 'ru' ? 'ru-RU' : 'en-US')}
+- **${t.depth}**: ${t.level} ${Math.max(1, Math.min(5, Math.floor(allArticles.length / 3)))} ${t.of} 5
 
 ---
 *🤖 Powered by Google Gemini AI • Real-time Press Analysis*`;
