@@ -5,7 +5,7 @@
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 300,
+  maxDuration: 60,
 };
 
 // Language configurations
@@ -224,7 +224,7 @@ export default async function handler(request) {
 // Main press monitoring logic
 async function runPressMonitor(targetCountries, sourceCountries, maxArticles, model) {
   const startTime = Date.now();
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
@@ -239,9 +239,10 @@ async function runPressMonitor(targetCountries, sourceCountries, maxArticles, mo
   }
   languagesToSearch = [...new Set(languagesToSearch)];
 
-  // Phase 1: Search articles
+  // Phase 1: Search articles - limit to 2 languages for testing
   const allArticles = [];
-  for (const langCode of languagesToSearch) {
+  const testLanguages = languagesToSearch.slice(0, 2); // Only test with 2 languages
+  for (const langCode of testLanguages) {
     try {
       const queries = await createSearchQueries(langCode, targetCountries, GEMINI_API_KEY, model);
       
@@ -284,13 +285,13 @@ let lastApiCallTime = 0;
 
 // Helper functions
 async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash') {
-  // Enforce rate limit: 10 requests per minute = minimum 6 seconds between requests
-  const now = Date.now();
-  const timeSinceLastCall = now - lastApiCallTime;
-  if (timeSinceLastCall < 6000) {
-    await delay(6000 - timeSinceLastCall);
-  }
-  lastApiCallTime = Date.now();
+  // Temporarily disable rate limiting for testing
+  // const now = Date.now();
+  // const timeSinceLastCall = now - lastApiCallTime;
+  // if (timeSinceLastCall < 6000) {
+  //   await delay(6000 - timeSinceLastCall);
+  // }
+  // lastApiCallTime = Date.now();
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
