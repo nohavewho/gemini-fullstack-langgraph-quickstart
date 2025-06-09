@@ -12,14 +12,6 @@
       "destination": "/index.html"
     }
   ],
-  "functions": {
-    "functions/api/*.js": {
-      "maxDuration": 60
-    },
-    "functions/api/press-monitor-stream.js": {
-      "maxDuration": 300
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
