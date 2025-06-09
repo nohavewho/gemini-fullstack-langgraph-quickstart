@@ -83,9 +83,9 @@ export default async function handler(request) {
         break;
     }
 
-    // Call the streaming endpoint internally
+    // Call the streaming endpoint internally via proper API route
     const baseUrl = new URL(request.url);
-    const streamUrl = new URL('/functions/api/press-monitor-stream', baseUrl.origin);
+    const streamUrl = new URL('/api/press-monitor-stream', baseUrl.origin);
     
     const streamResponse = await fetch(streamUrl.href, {
       method: 'POST',
