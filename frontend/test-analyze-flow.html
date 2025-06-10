@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Analyze Flow</title>
+</head>
+<body>
+  <h1>Test Analyze Flow</h1>
+  
+  <div>
+    <h2>1. Direct API Test</h2>
+    <button onclick="testDirectAPI()">Test Press Monitor API</button>
+    <pre id="api-result"></pre>
+  </div>
+  
+  <div>
+    <h2>2. Chat API Test</h2>
+    <button onclick="testChatAPI()">Test Chat API</button>
+    <pre id="chat-result"></pre>
+  </div>
+  
+  <div>
+    <h2>3. Simulate Full Flow</h2>
+    <button onclick="simulateFullFlow()">Simulate Analyze Click</button>
+    <pre id="flow-result"></pre>
+  </div>
+
+  <script>
+    const apiBase = 'http://localhost:3003/api'; // Vercel dev server
+    
+    async function testDirectAPI() {
+      const resultEl = document.getElementById('api-result');
+      resultEl.textContent = 'Testing...';
+      
+      try {
+        const response = await fetch(`${apiBase}/press-monitor-langgraph`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'neighbors_priority',
+            searchQuery: 'Test press analysis',
+            userLanguage: 'en',
+            stream: true
+          })
+        });
+        
+        resultEl.textContent = `Status: ${response.status}\n`;
+        
+        if (response.ok) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            resultEl.textContent += chunk;
+          }
+        } else {
+          const error = await response.text();
+          resultEl.textContent += `Error: ${error}`;
+        }
+      } catch (error) {
+        resultEl.textContent = `Error: ${error.message}`;
+      }
+    }
+    
+    async function testChatAPI() {
+      const resultEl = document.getElementById('chat-result');
+      resultEl.textContent = 'Testing...';
+      
+      try {
+        const response = await fetch(`${apiBase}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{
+              role: 'user',
+              content: 'Analyze press about Azerbaijan',
+              parts: [{ type: 'text', text: 'Analyze press about Azerbaijan' }]
+            }],
+            mode: 'neighbors_priority',
+            selectedCountries: ['RU', 'TR', 'GE', 'IR']
+          })
+        });
+        
+        resultEl.textContent = `Status: ${response.status}\n`;
+        
+        if (response.ok) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            resultEl.textContent += chunk;
+          }
+        } else {
+          const error = await response.text();
+          resultEl.textContent += `Error: ${error}`;
+        }
+      } catch (error) {
+        resultEl.textContent = `Error: ${error.message}`;
+      }
+    }
+    
+    async function simulateFullFlow() {
+      const resultEl = document.getElementById('flow-result');
+      resultEl.textContent = 'Simulating full analyze flow...\n\n';
+      
+      // Step 1: User clicks preset (e.g., "Neighbors")
+      resultEl.textContent += '1. User clicks "Neighbors" preset\n';
+      const selectedCountries = ['RU', 'TR', 'GE', 'IR'];
+      
+      // Step 2: User selects date range
+      resultEl.textContent += '2. User selects date range (last 7 days)\n';
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - 7);
+      const dateTo = new Date();
+      
+      // Step 3: System generates query
+      const query = `Press analysis: neighbors_priority, period: ${dateFrom.toLocaleDateString()} - ${dateTo.toLocaleDateString()}`;
+      resultEl.textContent += `3. Generated query: "${query}"\n\n`;
+      
+      // Step 4: Send to chat API
+      resultEl.textContent += '4. Sending to chat API...\n';
+      
+      try {
+        const response = await fetch(`${apiBase}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{
+              role: 'user',
+              content: query,
+              parts: [{ type: 'text', text: query }]
+            }],
+            mode: 'neighbors_priority',
+            selectedCountries: selectedCountries,
+            effortLevel: 3,
+            model: 'gemini-2.0-flash'
+          })
+        });
+        
+        resultEl.textContent += `\nResponse status: ${response.status}\n\n`;
+        
+        if (response.ok) {
+          resultEl.textContent += 'Streaming response:\n';
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            resultEl.textContent += chunk;
+          }
+        } else {
+          const error = await response.text();
+          resultEl.textContent += `Error: ${error}`;
+        }
+      } catch (error) {
+        resultEl.textContent += `Error: ${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html>

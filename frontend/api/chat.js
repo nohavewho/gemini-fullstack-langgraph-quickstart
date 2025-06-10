@@ -1,5 +1,4 @@
-import { streamText } from "ai";
-import { google } from "@ai-sdk/google";
+// Direct streaming from press-monitor-langgraph API
 
 export const config = {
   runtime: "edge",
@@ -20,9 +19,9 @@ export default async function handler(request) {
       throw new Error("No user message found");
     }
 
-    // Call our press monitor API - use working version with full functionality
+    // Call our press monitor API - use LangGraph integration with AI SDK v5
     const url = new URL(request.url);
-    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-working`;
+    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-langgraph`;
       
     console.log("Calling press monitor working endpoint:", endpoint);
     
@@ -34,7 +33,7 @@ export default async function handler(request) {
         options: mode === "custom" ? { countries: selectedCountries } : {},
         searchQuery: lastMessage.content,
         userLanguage: "ru",
-        stream: false
+        stream: true
       })
     });
 
@@ -42,20 +41,9 @@ export default async function handler(request) {
       throw new Error(`Press Monitor API error: ${pressResponse.status}`);
     }
 
-    const data = await pressResponse.json();
-    
-    if (!data.success) {
-      throw new Error(data.error || "Failed to get analysis");
-    }
-
-    // Use streamText to format the response properly for AI SDK client
-    const result = streamText({
-      model: google("gemini-2.5-flash-preview-05-20"),
-      prompt: data.digest,
-      system: "You are a press monitoring assistant. Present this analysis exactly as provided, maintaining all formatting, visual elements, and language.",
-    });
-
-    return result.toTextStreamResponse();
+    // Since we're calling with stream: true, the response is already a stream
+    // Just return it directly - no need to re-process
+    return pressResponse;
   } catch (error) {
     console.error("Chat API error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
