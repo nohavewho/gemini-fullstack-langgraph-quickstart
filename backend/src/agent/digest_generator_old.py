@@ -142,7 +142,6 @@ async def generate_digest(
     
     # Format the prompt
     prompt = DIGEST_GENERATION_PROMPT.format(
-        target_countries_names="Azerbaijan and neighboring region",
         digest_type=digest_type.capitalize(),
         total_articles=len(articles),
         languages_count=len(articles_by_language),
@@ -356,9 +355,11 @@ async def generate_comprehensive_digest(state: OrchestratorState) -> str:
         google_api_key=os.getenv("GEMINI_API_KEY")
     )
     
-    # Gemini does all analysis - no extra processing
-    analyzed_articles = all_articles
-    stats = calculate_simple_statistics(analyzed_articles)
+    # Analyze sentiment for all articles
+    analyzed_articles = await analyze_article_sentiments(all_articles, model)
+    
+    # Calculate statistics
+    stats = calculate_detailed_statistics(analyzed_articles)
     
     # Generate comprehensive analysis
     analysis_prompt = f"""
@@ -509,52 +510,6 @@ etc.
                 analyzed_articles.append(article_copy)
     
     return analyzed_articles
-
-
-def calculate_simple_statistics(articles: List[Dict]) -> Dict:
-    """Calculate basic statistics without sentiment analysis"""
-    
-    total_articles = len(articles)
-    
-    # Language and country breakdowns
-    languages = defaultdict(int)
-    countries = defaultdict(int)
-    sources = set()
-    topics = defaultdict(int)
-    
-    for article in articles:
-        languages[article.get('language_name', 'Unknown')] += 1
-        countries[article.get('source_country', 'Unknown')] += 1
-        sources.add(article.get('source_name', 'Unknown'))
-        
-        # Count topics/themes
-        for topic in article.get('topics', []):
-            topics[topic] += 1
-        for phrase in article.get('key_phrases', []):
-            topics[phrase] += 1
-    
-    # Sort by frequency
-    top_languages = sorted(languages.items(), key=lambda x: x[1], reverse=True)
-    top_countries = sorted(countries.items(), key=lambda x: x[1], reverse=True)
-    top_themes = sorted(topics.items(), key=lambda x: x[1], reverse=True)
-    
-    return {
-        'total_articles': total_articles,
-        'positive_count': 0,  # Gemini will determine this
-        'negative_count': 0,  # Gemini will determine this
-        'neutral_count': total_articles,  # Default neutral
-        'positive_percentage': 0,
-        'negative_percentage': 0,
-        'neutral_percentage': 100,
-        'languages_count': len(languages),
-        'countries_count': len(countries),
-        'sources_count': len(sources),
-        'top_languages': [lang for lang, count in top_languages[:5]],
-        'top_countries': [country for country, count in top_countries[:5]],
-        'top_themes': top_themes,
-        'languages_breakdown': top_languages,
-        'countries_breakdown': top_countries
-    }
 
 
 def calculate_detailed_statistics(articles: List[Dict]) -> Dict:

@@ -5,7 +5,7 @@ import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from langchain_google_genai import ChatGoogleGenerativeAI
-import google.generativeai as genai
+from google import genai
 from langchain_core.messages import HumanMessage, AIMessage
 
 from .state import OrchestratorState, LanguageSearchState, ArticleInfo
@@ -100,7 +100,8 @@ async def create_language_search_queries(
     
     prompt = MULTI_LANGUAGE_SEARCH_PROMPT.format(
         language_name=language_name,
-        target_countries_names="Azerbaijan and neighboring countries",
+        language_code=language_code,
+        azerbaijan_terms="",  # Empty! Let AI figure it out!
         current_date=datetime.now().strftime("%B %d, %Y")
     )
     
@@ -115,7 +116,7 @@ async def create_language_search_queries(
         return queries[:5]  # Max 5 queries
     except:
         # Fallback to simple queries
-        main_term = "Azerbaijan"
+        main_term = azerbaijan_terms[0] if azerbaijan_terms else "Azerbaijan"
         queries = [main_term]
         if date_filter:
             queries = [f"{q} {date_filter}" for q in queries]
@@ -223,17 +224,20 @@ async def search_news_in_language(
     # Execute each search query
     for query in language_state["search_queries"]:
         try:
-            # Use Google genai SDK directly for grounding search
-            genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY"))
+            # Use Google genai client directly for grounding search
+            from google.genai import Client
+            client = Client(api_key=os.getenv("GEMINI_API_KEY"))
             
             # Create search query with date filter
             search_prompt = f"{query} {date_filter}"
             
-            model = genai.GenerativeModel("gemini-2.0-flash-exp")
-            response = model.generate_content(
-                search_prompt,
-                tools=[{"google_search": {}}],
-                generation_config=genai.GenerationConfig(temperature=0.7)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=search_prompt,
+                config={
+                    "tools": [{"google_search": {}}],
+                    "temperature": 0.7,
+                }
             )
             
             # Extract articles from grounding metadata
@@ -326,7 +330,8 @@ async def extract_article_info(
     prompt = ARTICLE_EXTRACTION_PROMPT.format(
         title=article["title"],
         content=article["original_content"][:3000],  # Limit content length
-        target_countries_names=", ".join(azerbaijan_terms)
+        language_name=article["language_name"],
+        azerbaijan_terms=", ".join(azerbaijan_terms)
     )
     
     try:
