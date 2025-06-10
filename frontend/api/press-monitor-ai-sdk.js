@@ -4,20 +4,11 @@
  */
 
 import { streamText, generateText } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { google } from '@ai-sdk/google';
 
 export const config = {
   runtime: 'edge',
   maxDuration: 300,
-};
-
-// Initialize Google provider with API key
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
-});
-
-const getGoogleModel = (modelId = 'gemini-2.5-flash-preview-05-20') => {
-  return google(modelId);
 };
 
 // Language configurations
@@ -219,7 +210,7 @@ Available countries: ${Object.keys(COUNTRY_NAMES).join(', ')}
 Return JSON: { "targetCountries": ["XX"], "sourceCountries": ["YY", "ZZ"] }`;
 
   const { text } = await generateText({
-    model: getGoogleModel(model),
+    model: google(model),
     prompt,
     temperature: 0.3,
     maxTokens: 500,
@@ -272,7 +263,7 @@ For EACH article provide:
 Format as JSON array with ${count} articles.`;
 
   const { text } = await generateText({
-    model: getGoogleModel(model),
+    model: google(model),
     prompt,
     temperature: 0.8,
     maxTokens: 800, // Reduced to speed up
@@ -327,8 +318,8 @@ Create a digest in ${languageName} with:
 
 IMPORTANT: Write EVERYTHING in ${languageName} language!`;
 
-  const response = await streamText({
-    model: getGoogleModel(model),
+  const response = streamText({
+    model: google(model),
     prompt,
     temperature: 0.7,
     maxTokens: 4000,
@@ -445,7 +436,7 @@ export default async function handler(request) {
     } else {
       // Non-streaming response
       const { text: digest } = await generateText({
-        model: getGoogleModel(model),
+        model: google(model),
         prompt: `Create a brief summary of press coverage about ${targetCountries.join(', ')} based on these articles:\n\n${allArticles.map(a => `${a.country}: ${a.headline}`).join('\n')}\n\nWrite in ${userLanguage} language.`,
         temperature: 0.7,
         maxTokens: 1000,

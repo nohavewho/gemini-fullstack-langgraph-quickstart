@@ -1,18 +1,9 @@
 import { streamText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { google } from "@ai-sdk/google";
 
 export const config = {
   runtime: "edge",
   maxDuration: 300
-};
-
-// Initialize Google provider with API key
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
-});
-
-const getGoogleModel = (modelId = 'gemini-2.5-flash-preview-05-20') => {
-  return google(modelId);
 };
 
 export default async function handler(request) {
@@ -62,7 +53,7 @@ export default async function handler(request) {
 
     // Stream the result using AI SDK
     const result = await streamText({
-      model: getGoogleModel("gemini-2.5-flash-preview-05-20"),
+      model: google("gemini-2.5-flash-preview-05-20"),
       messages: [
         { role: "system", content: "You are a press monitoring assistant. Return the analysis as-is without modification." },
         { role: "user", content: data.digest }
