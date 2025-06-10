@@ -19,10 +19,10 @@ export default async function handler(request) {
       throw new Error("No user message found");
     }
 
-    // Call our press monitor API internally - use working version for faster response
+    // Call our press monitor API internally - use AI SDK version
     const endpoint = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}/api/press-monitor-working`
-      : "http://localhost:3000/api/press-monitor-working";
+      ? `https://${process.env.VERCEL_URL}/api/press-monitor-ai-sdk`
+      : "http://localhost:3000/api/press-monitor-ai-sdk";
       
     const pressResponse = await fetch(endpoint, {
       method: "POST",
