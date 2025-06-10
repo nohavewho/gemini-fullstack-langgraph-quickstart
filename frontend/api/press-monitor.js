@@ -26,9 +26,49 @@ export default async function handler(request) {
       stream = true
     } = body;
 
-    // Generate analysis with AI directly - backend integration removed for now
+    // Try LangGraph backend first with proper integration
     let result = null;
-    console.log('Generating analysis with AI...');
+    
+    // Check for backend availability
+    const backendUrl = process.env.LANGGRAPH_BACKEND_URL || 'http://localhost:2024';
+    if (backendUrl && !backendUrl.includes('your-langgraph-backend')) {
+      try {
+        console.log('Trying LangGraph backend:', backendUrl);
+        
+        // Construct proper query for backend
+        let backendQuery = searchQuery || `monitor press about azerbaijan`;
+        if (mode !== 'custom') {
+          backendQuery += ` mode: ${mode}`;
+        } else if (options.countries) {
+          backendQuery += ` countries: ${options.countries.join(', ')}`;
+        }
+        
+        const backendResponse = await fetch(`${backendUrl}/api/research`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: backendQuery,
+            effort: 'high',
+            model: 'gemini-2.5-flash-preview-05-20'
+          }),
+          signal: AbortSignal.timeout(5000) // 5s timeout for backend check
+        });
+
+        if (backendResponse.ok) {
+          const data = await backendResponse.json();
+          if (data.success) {
+            result = { digest: data.result };
+            console.log('Got response from LangGraph backend');
+          }
+        }
+      } catch (error) {
+        console.log('Backend not available:', error.message);
+      }
+    }
+    
+    // If no backend result, generate with AI
+    if (!result) {
+      console.log('Generating analysis with AI SDK...');
       
       // Parse the query to understand user intent
       let targetCountries = ['AZ']; // Default target
