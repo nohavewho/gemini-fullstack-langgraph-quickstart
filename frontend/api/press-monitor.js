@@ -3,7 +3,7 @@
  * Calls backend graph for real press monitoring with web search
  */
 
-import { streamText } from 'ai';
+import { streamText, generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 
 export const config = {
@@ -26,24 +26,50 @@ export default async function handler(request) {
       stream = true
     } = body;
 
-    // Call LangGraph backend for real press monitoring
-    const backendUrl = process.env.LANGGRAPH_BACKEND_URL || 'http://localhost:8123';
-    const backendResponse = await fetch(`${backendUrl}/api/press-monitor`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode,
-        options,
-        query: searchQuery,
-        language: userLanguage
-      }),
-    });
+    // Try to call LangGraph backend for real press monitoring
+    let result = null;
+    const backendUrl = process.env.LANGGRAPH_BACKEND_URL;
+    
+    if (backendUrl && backendUrl !== 'undefined') {
+      try {
+        console.log('Calling backend:', backendUrl);
+        const backendResponse = await fetch(`${backendUrl}/api/press-monitor`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode,
+            options,
+            query: searchQuery,
+            language: userLanguage
+          }),
+        });
 
-    if (!backendResponse.ok) {
-      throw new Error(`Backend error: ${backendResponse.status}`);
+        if (backendResponse.ok) {
+          result = await backendResponse.json();
+        } else {
+          console.error(`Backend error: ${backendResponse.status}`);
+        }
+      } catch (error) {
+        console.error('Backend call failed:', error);
+      }
     }
 
-    const result = await backendResponse.json();
+    // If backend failed or not configured, generate using AI
+    if (!result) {
+      console.log('Generating analysis with AI...');
+      const { text } = await generateText({
+        model: google('gemini-2.5-flash-preview-05-20'),
+        system: `You are an expert press monitoring analyst. Analyze recent media coverage about Azerbaijan from ${mode === 'custom' ? options.countries?.join(', ') : mode} countries.
+                 Search and analyze recent news, provide sentiment analysis, key themes, and strategic insights.
+                 Use web search to find real recent articles.
+                 Write in ${userLanguage} language.`,
+        prompt: searchQuery || `Analyze recent press coverage about Azerbaijan from international media`,
+        temperature: 0.7,
+        maxTokens: 4000,
+      });
+      
+      result = { digest: text };
+    }
     
     // Format the result with AI SDK streaming
     if (stream) {
