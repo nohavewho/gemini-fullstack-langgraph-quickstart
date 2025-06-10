@@ -35,6 +35,9 @@
     "api/press-monitor-ai-sdk.js": {
       "maxDuration": 300
     },
+    "api/press-monitor-ai-sdk-grounded.js": {
+      "maxDuration": 300
+    },
     "api/chat.js": {
       "maxDuration": 300
     },

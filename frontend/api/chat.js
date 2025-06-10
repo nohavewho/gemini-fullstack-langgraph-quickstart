@@ -1,5 +1,5 @@
 import { streamText } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 export const config = {
   runtime: "edge",
@@ -7,14 +7,12 @@ export const config = {
 };
 
 // Initialize Google provider with API key
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+});
+
 const getGoogleModel = (modelId = 'gemini-2.5-flash-preview-05-20') => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Google API key not found in environment variables');
-  }
-  return google(modelId, {
-    apiKey: apiKey
-  });
+  return google(modelId);
 };
 
 export default async function handler(request) {
@@ -34,7 +32,7 @@ export default async function handler(request) {
     // Call our press monitor API internally - use AI SDK version
     // Get the current request URL to build the full endpoint
     const url = new URL(request.url);
-    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-ai-sdk`;
+    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-ai-sdk-grounded`;
       
     console.log("Calling press monitor endpoint:", endpoint);
     

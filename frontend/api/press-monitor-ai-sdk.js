@@ -4,7 +4,7 @@
  */
 
 import { streamText, generateText } from 'ai';
-import { google } from '@ai-sdk/google';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 export const config = {
   runtime: 'edge',
@@ -12,14 +12,12 @@ export const config = {
 };
 
 // Initialize Google provider with API key
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+});
+
 const getGoogleModel = (modelId = 'gemini-2.5-flash-preview-05-20') => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Google API key not found in environment variables');
-  }
-  return google(modelId, {
-    apiKey: apiKey
-  });
+  return google(modelId);
 };
 
 // Language configurations
@@ -277,7 +275,7 @@ Format as JSON array with ${count} articles.`;
     model: getGoogleModel(model),
     prompt,
     temperature: 0.8,
-    maxTokens: 2000,
+    maxTokens: 800, // Reduced to speed up
   });
   
   try {
@@ -402,13 +400,18 @@ export default async function handler(request) {
       sourceCountries = COUNTRY_MODES.neighbors_priority.countries;
     }
 
+    // Limit countries to avoid timeout
+    const maxCountries = Math.min(3, sourceCountries.length); // MAX 3 countries to avoid Cloudflare timeout
+    const limitedSourceCountries = sourceCountries.slice(0, maxCountries);
+    
     // Generate articles for each country
-    const articlesPerCountry = Math.max(1, Math.min(3, Math.floor(effortLevel / 2)));
+    const articlesPerCountry = Math.max(1, Math.min(2, Math.floor(effortLevel / 2)));
     const allArticles = [];
     
-    for (const countryCode of sourceCountries) {
+    // Batch process countries in parallel to save time
+    const articlePromises = limitedSourceCountries.map(async (countryCode) => {
       const langCode = getCountryLanguageCode(countryCode);
-      const articles = await generateArticles(
+      return generateArticles(
         countryCode,
         langCode,
         targetCountries,
@@ -416,8 +419,10 @@ export default async function handler(request) {
         model,
         searchQuery
       );
-      allArticles.push(...articles);
-    }
+    });
+    
+    const articlesArrays = await Promise.all(articlePromises);
+    articlesArrays.forEach(articles => allArticles.push(...articles));
 
     // Generate digest using streaming
     if (stream) {
