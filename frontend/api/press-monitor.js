@@ -57,15 +57,105 @@ export default async function handler(request) {
     // If backend failed or not configured, generate using AI
     if (!result) {
       console.log('Generating analysis with AI...');
+      
+      // Parse the query to understand user intent
+      let targetCountries = ['AZ']; // Default target
+      let sourceCountries = [];
+      let dateRange = '';
+      
+      // Extract preset/mode from query like "Анализ прессы: neighbors_priority, период: 02.06.2025 - 09.06.2025"
+      const presetMatch = searchQuery.match(/(?:Press analysis|Анализ прессы|Basın analizi|Mətbuat təhlili):\s*(\w+)/i);
+      const periodMatch = searchQuery.match(/(?:period|период|dönem|dövr):\s*([\d\.\-\s]+)/i);
+      
+      if (presetMatch) {
+        const presetMode = presetMatch[1];
+        // Map preset modes to countries
+        const presetMappings = {
+          'neighbors_priority': ['TR', 'RU', 'IR', 'GE', 'AM'],
+          'turkic_world': ['TR', 'KZ', 'UZ', 'KG', 'TM', 'TJ'],
+          'central_asia': ['KZ', 'UZ', 'TM', 'KG', 'TJ'],
+          'caspian_states': ['RU', 'IR', 'KZ', 'TM'],
+          'arabic_world': ['SA', 'EG', 'JO', 'LB', 'MA', 'AE', 'QA', 'KW', 'BH', 'OM', 'SY', 'IQ', 'YE'],
+          'europe': ['DE', 'FR', 'UK', 'IT', 'ES', 'PT'],
+          'major_powers': ['US', 'CN', 'RU', 'DE', 'FR', 'UK'],
+          'asia': ['CN', 'JP', 'KR', 'IN', 'PK', 'TH', 'MY', 'ID']
+        };
+        sourceCountries = presetMappings[presetMode] || [];
+      }
+      
+      if (periodMatch) {
+        dateRange = periodMatch[1];
+      }
+      
+      // Use custom countries if provided
+      if (mode === 'custom' && options.countries) {
+        sourceCountries = options.countries;
+      }
+      
+      // Country names mapping for better output
+      const countryNames = {
+        'TR': 'Turkey', 'RU': 'Russia', 'IR': 'Iran', 'GE': 'Georgia', 'AM': 'Armenia',
+        'KZ': 'Kazakhstan', 'UZ': 'Uzbekistan', 'TM': 'Turkmenistan', 'KG': 'Kyrgyzstan', 'TJ': 'Tajikistan',
+        'US': 'United States', 'CN': 'China', 'DE': 'Germany', 'FR': 'France', 'UK': 'United Kingdom',
+        'SA': 'Saudi Arabia', 'EG': 'Egypt', 'AE': 'UAE', 'JP': 'Japan', 'KR': 'South Korea',
+        'IN': 'India', 'PK': 'Pakistan', 'IT': 'Italy', 'ES': 'Spain', 'PT': 'Portugal'
+      };
+      
+      const sourcesText = sourceCountries.map(c => countryNames[c] || c).join(', ');
+      const languageInstructions = {
+        'ru': 'Пиши ВЕСЬ анализ ТОЛЬКО на русском языке! Включая заголовки, выводы и все секции.',
+        'en': 'Write the ENTIRE analysis in English only.',
+        'tr': 'TÜM analizi SADECE Türkçe yaz! Başlıklar, sonuçlar ve tüm bölümler dahil.',
+        'az': 'BÜTÜN təhlili YALNIZ Azərbaycan dilində yaz!'
+      };
+      
       const { text } = await generateText({
         model: google('gemini-2.5-flash-preview-05-20'),
-        system: `You are an expert press monitoring analyst. Analyze recent media coverage about Azerbaijan from ${mode === 'custom' ? options.countries?.join(', ') : mode} countries.
-                 Search and analyze recent news, provide sentiment analysis, key themes, and strategic insights.
-                 Use web search to find real recent articles.
-                 Write in ${userLanguage} language.`,
-        prompt: searchQuery || `Analyze recent press coverage about Azerbaijan from international media`,
+        system: `You are an expert press monitoring analyst specializing in Azerbaijan's international media coverage.
+                 ${dateRange ? `Focus on the period: ${dateRange}` : 'Focus on the most recent news (last 7 days)'}
+                 
+                 CRITICAL: ${languageInstructions[userLanguage] || languageInstructions['en']}`,
+        prompt: `Analyze press coverage about Azerbaijan from these countries: ${sourcesText}
+
+${searchQuery}
+
+Create a COMPREHENSIVE press monitoring report with:
+
+# 📊 EXECUTIVE SUMMARY
+Key findings and overall sentiment from ${sourcesText}
+
+# 🌍 COVERAGE BY COUNTRY
+For each country (${sourcesText}), provide:
+- 3-5 most important recent articles/news
+- Sentiment analysis (positive/negative/neutral)
+- Key themes and narratives
+- Direct quotes from media sources
+
+# 📈 SENTIMENT ANALYSIS
+Visual representation using emoji charts:
+- Overall sentiment distribution
+- Country-by-country sentiment
+- Trend analysis
+
+# 🔍 KEY THEMES & TOPICS
+- Most discussed topics about Azerbaijan
+- Emerging narratives
+- Regional perspectives
+
+# 💡 STRATEGIC INSIGHTS
+- Opportunities identified
+- Risks and challenges
+- Recommendations for decision-makers
+
+# 📅 TEMPORAL ANALYSIS
+- How coverage evolved over time
+- Key events that shaped narratives
+
+Use markdown formatting, emoji indicators, and create visual charts using text/emoji.
+Base your analysis on REAL recent news and actual media coverage.
+${languageInstructions[userLanguage] || languageInstructions['en']}`,
         temperature: 0.7,
-        maxTokens: 4000,
+        maxTokens: 8000,
       });
       
       result = { digest: text };
