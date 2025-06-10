@@ -20,10 +20,9 @@ export default async function handler(request) {
       throw new Error("No user message found");
     }
 
-    // Call our press monitor API internally - use AI SDK version
-    // Get the current request URL to build the full endpoint
+    // Call our press monitor API that integrates with backend
     const url = new URL(request.url);
-    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-ai-sdk`;
+    const endpoint = `${url.protocol}//${url.host}/api/press-monitor`;
       
     console.log("Calling press monitor endpoint:", endpoint);
     
@@ -33,8 +32,6 @@ export default async function handler(request) {
       body: JSON.stringify({
         mode: mode || "custom",
         options: mode === "custom" ? { countries: selectedCountries } : {},
-        effortLevel: effortLevel || 2,
-        model: "gemini-2.5-flash-preview-05-20",
         searchQuery: lastMessage.content,
         userLanguage: "ru",
         stream: false

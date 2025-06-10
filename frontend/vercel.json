@@ -32,7 +32,7 @@
     }
   ],
   "functions": {
-    "api/press-monitor-ai-sdk.js": {
+    "api/press-monitor.js": {
       "maxDuration": 300
     },
     "api/chat.js": {
