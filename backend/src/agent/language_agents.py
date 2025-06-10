@@ -5,7 +5,7 @@ import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from langchain_google_genai import ChatGoogleGenerativeAI
-from google import genai
+import google.generativeai as genai
 from langchain_core.messages import HumanMessage, AIMessage
 
 from .state import OrchestratorState, LanguageSearchState, ArticleInfo
@@ -224,20 +224,17 @@ async def search_news_in_language(
     # Execute each search query
     for query in language_state["search_queries"]:
         try:
-            # Use Google genai client directly for grounding search
-            from google.genai import Client
-            client = Client(api_key=os.getenv("GEMINI_API_KEY"))
+            # Use Google genai SDK directly for grounding search
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY"))
             
             # Create search query with date filter
             search_prompt = f"{query} {date_filter}"
             
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=search_prompt,
-                config={
-                    "tools": [{"google_search": {}}],
-                    "temperature": 0.7,
-                }
+            model = genai.GenerativeModel("gemini-2.0-flash-exp")
+            response = model.generate_content(
+                search_prompt,
+                tools=[{"google_search": {}}],
+                generation_config=genai.GenerationConfig(temperature=0.7)
             )
             
             # Extract articles from grounding metadata

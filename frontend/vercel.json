@@ -4,7 +4,8 @@
   "framework": "vite",
   "installCommand": "npm install",
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "RAILWAY_BACKEND_URL": "@railway-backend-url"
   },
   "rewrites": [
     {
@@ -16,32 +17,8 @@
       "destination": "/index.html"
     }
   ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    }
-  ],
   "functions": {
-    "api/press-monitor-langgraph.js": {
-      "maxDuration": 300
-    },
-    "api/chat.js": {
-      "maxDuration": 300
-    },
-    "api/chat/sessions.js": {
-      "maxDuration": 60
-    },
-    "api/chat/messages.js": {
+    "api/*.js": {
       "maxDuration": 60
     }
   }

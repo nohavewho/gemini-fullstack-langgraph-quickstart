@@ -9,5 +9,6 @@ from src.agent.app import app
 import uvicorn
 
 if __name__ == "__main__":
-    print("🚀 Starting Azerbaijan Press Monitor Server...")
-    uvicorn.run(app, host="0.0.0.0", port=2024)
+    port = int(os.environ.get("PORT", 8000))
+    print(f"🚀 Starting Press Monitor LangGraph Server on port {port}...")
+    uvicorn.run(app, host="0.0.0.0", port=port)

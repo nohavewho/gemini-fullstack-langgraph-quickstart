@@ -7,7 +7,7 @@ from langgraph.types import Send
 from langgraph.graph import StateGraph
 from langgraph.graph import START, END
 from langchain_core.runnables import RunnableConfig
-from google.genai import Client
+import google.generativeai as genai
 
 from .state import (
     OverallState,
@@ -33,11 +33,11 @@ from .utils import (
 
 load_dotenv()
 
-if os.getenv("GEMINI_API_KEY") is None:
-    raise ValueError("GEMINI_API_KEY is not set")
+if os.getenv("GEMINI_API_KEY") is None and os.getenv("GOOGLE_GENERATIVE_AI_API_KEY") is None:
+    raise ValueError("GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY must be set")
 
-# Used for Google Search API
-genai_client = Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Configure Google Generative AI
+genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY"))
 
 
 def extract_monitoring_params_from_content(message: str) -> dict:
@@ -117,14 +117,12 @@ def web_research(state: WebSearchState, config: RunnableConfig) -> OverallState:
         research_topic=state["search_query"],
     )
 
-    # Uses the google genai client as the langchain client doesn't return grounding metadata
-    response = genai_client.models.generate_content(
-        model=configurable.query_generator_model,
-        contents=formatted_prompt,
-        config={
-            "tools": [{"google_search": {}}],
-            "temperature": 0,
-        },
+    # Uses the google genai SDK
+    model = genai.GenerativeModel(configurable.query_generator_model)
+    response = model.generate_content(
+        formatted_prompt,
+        tools=[{"google_search": {}}],
+        generation_config=genai.GenerationConfig(temperature=0)
     )
     # resolve the urls to short urls for saving tokens and time
     grounding_chunks = None
