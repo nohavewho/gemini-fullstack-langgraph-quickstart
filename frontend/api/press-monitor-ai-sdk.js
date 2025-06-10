@@ -172,6 +172,36 @@ const COUNTRY_MODES = {
   }
 };
 
+function generateAdvancedBar(value, total, icon = '█', width = 20) {
+  const percentage = value / total;
+  const filled = Math.round(percentage * width);
+  if (icon === '🟢') {
+    return '🟩'.repeat(filled) + '⬜'.repeat(width - filled);
+  } else if (icon === '🔴') {
+    return '🟥'.repeat(filled) + '⬜'.repeat(width - filled);
+  } else {
+    return '⬜'.repeat(filled) + '⬛'.repeat(width - filled);
+  }
+}
+
+function getCountryFlag(countryCode) {
+  const flags = {
+    'TR': '🇹🇷', 'RU': '🇷🇺', 'IR': '🇮🇷', 'GE': '🇬🇪', 'AM': '🇦🇲',
+    'US': '🇺🇸', 'CN': '🇨🇳', 'DE': '🇩🇪', 'FR': '🇫🇷', 'UK': '🇬🇧',
+    'KZ': '🇰🇿', 'UZ': '🇺🇿', 'TM': '🇹🇲', 'KG': '🇰🇬', 'TJ': '🇹🇯',
+    'UA': '🇺🇦', 'ES': '🇪🇸', 'IT': '🇮🇹', 'JP': '🇯🇵', 'KR': '🇰🇷',
+    'SA': '🇸🇦', 'AE': '🇦🇪', 'EG': '🇪🇬', 'IN': '🇮🇳', 'BR': '🇧🇷',
+    'PT': '🇵🇹', 'NL': '🇳🇱', 'BE': '🇧🇪', 'AT': '🇦🇹', 'CH': '🇨🇭',
+    'SE': '🇸🇪', 'NO': '🇳🇴', 'DK': '🇩🇰', 'FI': '🇫🇮', 'PL': '🇵🇱',
+    'MA': '🇲🇦', 'IL': '🇮🇱', 'QA': '🇶🇦', 'KW': '🇰🇼', 'BH': '🇧🇭',
+    'OM': '🇴🇲', 'JO': '🇯🇴', 'LB': '🇱🇧', 'SY': '🇸🇾', 'IQ': '🇮🇶',
+    'YE': '🇾🇪', 'PK': '🇵🇰', 'TH': '🇹🇭', 'MY': '🇲🇾', 'ID': '🇮🇩',
+    'VN': '🇻🇳', 'PH': '🇵🇭', 'AU': '🇦🇺', 'NZ': '🇳🇿', 'CA': '🇨🇦',
+    'MX': '🇲🇽', 'AR': '🇦🇷', 'CL': '🇨🇱', 'CO': '🇨🇴', 'PE': '🇵🇪'
+  };
+  return flags[countryCode] || '🏳️';
+}
+
 function getCountryLanguageCode(countryCode) {
   const countryLanguageMap = {
     "TR": "tr", "RU": "ru", "IR": "fa", "GE": "ka", "AM": "hy",
@@ -253,14 +283,23 @@ Sources to use: ${sourcesToUse.join(', ')}
 Topics: ${topicsStr}
 ${userQuery ? `User interest: ${userQuery}` : ''}
 
-For EACH article provide:
-1. Source name (from the list above)
-2. Headline (in ${languageName})
-3. Summary (2-3 sentences in ${languageName})
-4. Sentiment: positive/negative/neutral
-5. Topic category
+Return a JSON array with EXACTLY ${count} article objects. Each object must have these fields:
+- source: string (media outlet name)
+- headline: string (in ${languageName})  
+- summary: string (2-3 sentences in ${languageName})
+- sentiment: string (positive/negative/neutral)
+- topic: string (category)
 
-Format as JSON array with ${count} articles.`;
+Example format:
+[
+  {
+    "source": "Reuters",
+    "headline": "Example headline",
+    "summary": "Article summary here.",
+    "sentiment": "positive",
+    "topic": "economy"
+  }
+]`;
 
   const { text } = await generateText({
     model: google(model),
@@ -291,41 +330,177 @@ async function generateDigest(articles, targetCountries, userLanguage, model, us
   const targetNames = targetCountries.map(c => COUNTRY_NAMES[c] || c).join(", ");
   const languageName = LANGUAGE_NAMES[userLanguage] || 'English';
   
-  const articlesByCountry = {};
+  // Analyze articles
+  const positive = articles.filter(a => a.sentiment === 'positive');
+  const negative = articles.filter(a => a.sentiment === 'negative');
+  const neutral = articles.filter(a => a.sentiment === 'neutral');
+  
+  const coverageByCountry = {};
+  const sources = new Set();
+  const languages = new Set();
+  
   articles.forEach(article => {
-    if (!articlesByCountry[article.country]) {
-      articlesByCountry[article.country] = [];
+    if (!coverageByCountry[article.country]) {
+      coverageByCountry[article.country] = [];
     }
-    articlesByCountry[article.country].push(article);
+    coverageByCountry[article.country].push(article);
+    sources.add(article.source);
+    languages.add(article.language);
   });
 
-  const prompt = `Create a comprehensive analytical digest about ${targetNames} based on international media coverage.
+  // Build main themes
+  const mainThemes = articles.reduce((themes, article) => {
+    const topic = article.topic || 'general';
+    themes[topic] = (themes[topic] || 0) + 1;
+    return themes;
+  }, {});
 
-Articles by country:
-${Object.entries(articlesByCountry).map(([country, countryArticles]) => `
-${COUNTRY_NAMES[country]}:
-${countryArticles.map(a => `- ${a.headline} (${a.sentiment})`).join('\n')}
+  const prompt = `Create an EXECUTIVE PRESS MONITORING DIGEST for ${targetNames}
+
+Based on analysis of ${articles.length} articles from ${sources.size} sources in ${languages.size} languages.
+
+## 📊 SENTIMENT OVERVIEW
+Positive: ${((positive.length / articles.length) * 100).toFixed(1)}% (${positive.length} articles)
+Negative: ${((negative.length / articles.length) * 100).toFixed(1)}% (${negative.length} articles)  
+Neutral: ${((neutral.length / articles.length) * 100).toFixed(1)}% (${neutral.length} articles)
+
+## 📰 KEY COVERAGE BY REGION
+${Object.entries(coverageByCountry).map(([country, countryArticles]) => `
+### ${getCountryFlag(country)} ${COUNTRY_NAMES[country]}
+${countryArticles.map(a => `- **${a.headline}** (${a.sentiment})`).join('\n')}
 `).join('\n')}
 
-${userQuery ? `User query focus: ${userQuery}` : ''}
+## 🔍 MAIN THEMES IDENTIFIED
+${Object.entries(mainThemes).map(([theme, count]) => `- **${theme}**: ${count} articles`).join('\n')}
 
-Create a digest in ${languageName} with:
-1. Executive Summary (key findings)
-2. Analysis by regions/countries
-3. Key themes and trends
-4. Sentiment analysis
-5. Visual statistics (using text-based charts)
+${userQuery ? `\n## 🎯 USER QUERY FOCUS\nUser specifically asked: "${userQuery}"\n` : ''}
 
-IMPORTANT: Write EVERYTHING in ${languageName} language!`;
+## 💡 STRATEGIC INSIGHTS
 
-  const response = streamText({
+Synthesize the findings into actionable intelligence:
+1. How is ${targetNames} perceived in different regions?
+2. What are the main concerns and opportunities?
+3. Which narratives are gaining traction?
+4. What actions should decision-makers consider?
+
+CRITICAL: Write EVERYTHING in ${languageName} language! No English words except source names.`;
+
+  const { text: digest } = await generateText({
     model: google(model),
     prompt,
     temperature: 0.7,
-    maxTokens: 4000,
+    maxTokens: 3000,
   });
+  
+  // Add visual statistics
+  const visualStats = generateVisualStatistics(
+    articles,
+    coverageByCountry,
+    Array.from(languages),
+    Array.from(sources),
+    positive,
+    negative,
+    neutral,
+    userLanguage
+  );
+  
+  return digest + '\n\n' + visualStats;
+}
 
-  return response.toTextStreamResponse();
+function generateVisualStatistics(allArticles, coverageByCountry, languages, sources, positive, negative, neutral, userLanguage = 'en') {
+  const t = {
+    title: userLanguage === 'ru' ? '📊 АНАЛИТИЧЕСКИЙ ДАШБОРД' : '📊 EXECUTIVE ANALYTICS DASHBOARD',
+    sentiment: userLanguage === 'ru' ? '🎯 Тональность публикаций' : '🎯 Sentiment Analysis',
+    positive: userLanguage === 'ru' ? '✅ Позитив' : '✅ Positive',
+    negative: userLanguage === 'ru' ? '❌ Негатив' : '❌ Negative',
+    neutral: userLanguage === 'ru' ? '⚪ Нейтрал' : '⚪ Neutral',
+    coverage: userLanguage === 'ru' ? '🌍 География покрытия' : '🌍 Geographic Coverage',
+    sources: userLanguage === 'ru' ? '📰 Топ источники' : '📰 Top Media Sources',
+    metadata: userLanguage === 'ru' ? '📋 Метрики анализа' : '📋 Analysis Metrics',
+    total: userLanguage === 'ru' ? 'Всего статей' : 'Total Articles',
+    langs: userLanguage === 'ru' ? 'Языков' : 'Languages',
+    date: userLanguage === 'ru' ? 'Дата анализа' : 'Analysis Date',
+    depth: userLanguage === 'ru' ? 'Глубина' : 'Depth',
+    level: userLanguage === 'ru' ? 'Уровень' : 'Level',
+    of: userLanguage === 'ru' ? 'из' : 'of',
+    articles: userLanguage === 'ru' ? 'статей' : 'articles',
+    trend: userLanguage === 'ru' ? '📈 Динамика тональности' : '📈 Sentiment Trend',
+    keyInsights: userLanguage === 'ru' ? '💡 Ключевые инсайты' : '💡 Key Insights',
+    riskLevel: userLanguage === 'ru' ? '⚠️ Уровень риска' : '⚠️ Risk Level',
+    opportunities: userLanguage === 'ru' ? '🎯 Возможности' : '🎯 Opportunities'
+  };
+
+  // Calculate risk level
+  const negativePercent = (negative.length / allArticles.length) * 100;
+  const riskLevel = negativePercent > 40 ? '🔴 ВЫСОКИЙ' : negativePercent > 20 ? '🟡 СРЕДНИЙ' : '🟢 НИЗКИЙ';
+  
+  // Generate sentiment pie chart
+  const total = allArticles.length;
+  const posPercent = Math.round((positive.length / total) * 100);
+  const negPercent = Math.round((negative.length / total) * 100);
+  const neutPercent = 100 - posPercent - negPercent;
+
+  const visualStats = `
+
+# ${t.title}
+
+---
+
+## ${t.sentiment}
+
+### 🎨 Общая картина
+\`\`\`
+┌─────────────────────────────────────────────┐
+│                                             │
+│  ${t.positive.padEnd(12)} ${generateAdvancedBar(positive.length, allArticles.length, '🟢')} ${posPercent}%
+│                                             │
+│  ${t.negative.padEnd(12)} ${generateAdvancedBar(negative.length, allArticles.length, '🔴')} ${negPercent}%
+│                                             │
+│  ${t.neutral.padEnd(12)} ${generateAdvancedBar(neutral.length, allArticles.length, '⚪')} ${neutPercent}%
+│                                             │
+└─────────────────────────────────────────────┘
+\`\`\`
+
+### 📊 Круговая диаграмма тональности
+\`\`\`
+       Позитив ${posPercent}%
+         ╱─────╲
+    🟢 ╱         ╲ 🔴
+      │     ◯     │ Негатив ${negPercent}%
+    ⚪ ╲         ╱
+         ╲─────╱
+      Нейтрал ${neutPercent}%
+\`\`\`
+
+---
+
+## ${t.coverage}
+
+\`\`\`
+${Object.entries(coverageByCountry)
+  .sort((a, b) => b[1].length - a[1].length)
+  .map(([country, articles], index) => {
+    const countryName = COUNTRY_NAMES[country] || country;
+    const flag = getCountryFlag(country);
+    const percent = ((articles.length / allArticles.length) * 100).toFixed(1);
+    return `${(index + 1).toString().padStart(2)}. ${flag} ${countryName.padEnd(15)} ${generateAdvancedBar(articles.length, allArticles.length)} ${percent}% (${articles.length})`;
+  }).join('\n')}
+\`\`\`
+
+---
+
+## ${t.metadata}
+
+- 📅 **${t.date}**: ${new Date().toLocaleDateString(userLanguage === 'ru' ? 'ru-RU' : 'en-US')}
+- 📰 **${t.total}**: ${allArticles.length}
+- 🌐 **${t.langs}**: ${languages.length}
+- 📊 **${t.sources}**: ${sources.length}
+- ⚠️ **${t.riskLevel}**: ${riskLevel}
+
+---
+`;
+
+  return visualStats;
 }
 
 export default async function handler(request) {
@@ -414,18 +589,30 @@ export default async function handler(request) {
     
     const articlesArrays = await Promise.all(articlePromises);
     articlesArrays.forEach(articles => allArticles.push(...articles));
+    
+    console.log('Generated articles count:', allArticles.length);
+    console.log('Sample article:', allArticles[0]);
 
-    // Generate digest using streaming
+    // Generate digest
+    const fullDigest = await generateDigest(
+      allArticles,
+      targetCountries,
+      userLanguage,
+      model,
+      searchQuery
+    );
+
     if (stream) {
-      const digestStream = await generateDigest(
-        allArticles,
-        targetCountries,
-        userLanguage,
-        model,
-        searchQuery
-      );
+      // For streaming, we need to stream the already generated content
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(fullDigest));
+          controller.close();
+        },
+      });
 
-      return new Response(digestStream, {
+      return new Response(stream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -435,16 +622,9 @@ export default async function handler(request) {
       });
     } else {
       // Non-streaming response
-      const { text: digest } = await generateText({
-        model: google(model),
-        prompt: `Create a brief summary of press coverage about ${targetCountries.join(', ')} based on these articles:\n\n${allArticles.map(a => `${a.country}: ${a.headline}`).join('\n')}\n\nWrite in ${userLanguage} language.`,
-        temperature: 0.7,
-        maxTokens: 1000,
-      });
-      
       return new Response(JSON.stringify({
         success: true,
-        digest,
+        digest: fullDigest,
         metadata: {
           targetCountries,
           sourceCountries,
