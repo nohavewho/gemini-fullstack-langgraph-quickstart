@@ -12,7 +12,7 @@ export const config = {
 };
 
 // Initialize Google provider with API key
-const getGoogleModel = (modelId = 'gemini-2.0-flash-exp') => {
+const getGoogleModel = (modelId = 'gemini-2.5-flash-preview-05-20') => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) {
     throw new Error('Google API key not found in environment variables');
@@ -367,7 +367,7 @@ export default async function handler(request) {
       mode = 'neighbors_priority', 
       options = {},
       effortLevel = 3,
-      model = 'gemini-2.0-flash-exp',
+      model = 'gemini-2.5-flash-preview-05-20',
       searchQuery = '',
       userLanguage = 'en',
       stream = true

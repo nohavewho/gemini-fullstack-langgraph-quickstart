@@ -2,7 +2,19 @@ import { streamText } from "ai";
 import { google } from "@ai-sdk/google";
 
 export const config = {
-  runtime: "edge"
+  runtime: "edge",
+  maxDuration: 300
+};
+
+// Initialize Google provider with API key
+const getGoogleModel = (modelId = 'gemini-2.5-flash-preview-05-20') => {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Google API key not found in environment variables');
+  }
+  return google(modelId, {
+    apiKey: apiKey
+  });
 };
 
 export default async function handler(request) {
@@ -20,10 +32,13 @@ export default async function handler(request) {
     }
 
     // Call our press monitor API internally - use AI SDK version
-    const endpoint = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}/api/press-monitor-ai-sdk`
-      : "http://localhost:3000/api/press-monitor-ai-sdk";
+    const baseUrl = process.env.VERCEL_URL 
+      ? (process.env.VERCEL_URL.startsWith('http') ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`)
+      : "http://localhost:3000";
+    const endpoint = `${baseUrl}/api/press-monitor-ai-sdk`;
       
+    console.log("Calling press monitor endpoint:", endpoint);
+    
     const pressResponse = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -31,9 +46,10 @@ export default async function handler(request) {
         mode: mode || "custom",
         options: mode === "custom" ? { countries: selectedCountries } : {},
         effortLevel: effortLevel || 2,
-        model: model || "gemini-2.0-flash-thinking-exp",
+        model: "gemini-2.5-flash-preview-05-20",
         searchQuery: lastMessage.content,
-        userLanguage: "ru"
+        userLanguage: "ru",
+        stream: false
       })
     });
 
@@ -49,14 +65,14 @@ export default async function handler(request) {
 
     // Stream the result using AI SDK
     const result = await streamText({
-      model: google("gemini-2.0-flash-thinking-exp"),
+      model: getGoogleModel("gemini-2.5-flash-preview-05-20"),
       messages: [
         { role: "system", content: "You are a press monitoring assistant. Return the analysis as-is without modification." },
-        { role: "user", content: data.result }
+        { role: "user", content: data.digest }
       ],
     });
 
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error("Chat API error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
