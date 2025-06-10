@@ -142,6 +142,7 @@ async def generate_digest(
     
     # Format the prompt
     prompt = DIGEST_GENERATION_PROMPT.format(
+        target_countries_names="Azerbaijan and neighboring region",
         digest_type=digest_type.capitalize(),
         total_articles=len(articles),
         languages_count=len(articles_by_language),

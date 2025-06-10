@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "env": {
     "NODE_ENV": "production",
-    "RAILWAY_BACKEND_URL": "@railway-backend-url"
+    "RAILWAY_BACKEND_URL": "https://press-monitor-backend-production.up.railway.app"
   },
   "rewrites": [
     {

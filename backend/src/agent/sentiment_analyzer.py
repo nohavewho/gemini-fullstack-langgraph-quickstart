@@ -23,9 +23,7 @@ async def analyze_article_sentiment(
     # Prepare prompt
     prompt = SENTIMENT_ANALYSIS_PROMPT.format(
         title=article["title"],
-        content=article.get("translated_content") or article["original_content"],
-        summary=article["summary"],
-        mentions=article["mentions_context"]
+        target_countries_names="Azerbaijan and region"
     )
     
     # Add language-specific instruction

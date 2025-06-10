@@ -100,8 +100,7 @@ async def create_language_search_queries(
     
     prompt = MULTI_LANGUAGE_SEARCH_PROMPT.format(
         language_name=language_name,
-        language_code=language_code,
-        azerbaijan_terms="",  # Empty! Let AI figure it out!
+        target_countries_names="Azerbaijan and neighboring countries",
         current_date=datetime.now().strftime("%B %d, %Y")
     )
     
@@ -327,8 +326,7 @@ async def extract_article_info(
     prompt = ARTICLE_EXTRACTION_PROMPT.format(
         title=article["title"],
         content=article["original_content"][:3000],  # Limit content length
-        language_name=article["language_name"],
-        azerbaijan_terms=", ".join(azerbaijan_terms)
+        target_countries_names=", ".join(azerbaijan_terms)
     )
     
     try:

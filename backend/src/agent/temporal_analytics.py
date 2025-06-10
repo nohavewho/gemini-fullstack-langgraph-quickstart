@@ -276,7 +276,7 @@ class TemporalAnalyticsAgent:
                     date=change["date"],
                     change_direction=change["direction"],
                     change_percentage=abs(change["change_percentage"]),
-                    articles_summary=articles_summary
+                    target_countries_names="Azerbaijan and region"
                 )
                 
                 response = await self.model.ainvoke(prompt)
