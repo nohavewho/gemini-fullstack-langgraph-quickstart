@@ -32,7 +32,9 @@ export default async function handler(request) {
     }
 
     // Call our press monitor API internally - use AI SDK version
-    const endpoint = "/api/press-monitor-ai-sdk"; // Use relative URL for same-origin requests
+    // Get the current request URL to build the full endpoint
+    const url = new URL(request.url);
+    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-ai-sdk`;
       
     console.log("Calling press monitor endpoint:", endpoint);
     
