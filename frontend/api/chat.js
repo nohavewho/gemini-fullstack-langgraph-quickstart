@@ -32,10 +32,7 @@ export default async function handler(request) {
     }
 
     // Call our press monitor API internally - use AI SDK version
-    const baseUrl = process.env.VERCEL_URL 
-      ? (process.env.VERCEL_URL.startsWith('http') ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`)
-      : "http://localhost:3000";
-    const endpoint = `${baseUrl}/api/press-monitor-ai-sdk`;
+    const endpoint = "/api/press-monitor-ai-sdk"; // Use relative URL for same-origin requests
       
     console.log("Calling press monitor endpoint:", endpoint);
     
