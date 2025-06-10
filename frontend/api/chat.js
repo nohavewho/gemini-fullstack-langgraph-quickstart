@@ -51,13 +51,11 @@ export default async function handler(request) {
       throw new Error(data.error || "Failed to get analysis");
     }
 
-    // Stream the result using AI SDK
-    const result = await streamText({
+    // Use streamText to format the response properly for AI SDK client
+    const result = streamText({
       model: google("gemini-2.5-flash-preview-05-20"),
-      messages: [
-        { role: "system", content: "You are a press monitoring assistant. Return the analysis as-is without modification." },
-        { role: "user", content: data.digest }
-      ],
+      prompt: data.digest,
+      system: "You are a press monitoring assistant. Present this analysis exactly as provided, maintaining all formatting, visual elements, and language.",
     });
 
     return result.toTextStreamResponse();
