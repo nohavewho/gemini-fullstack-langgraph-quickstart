@@ -20,11 +20,11 @@ export default async function handler(request) {
       throw new Error("No user message found");
     }
 
-    // Call our press monitor API that integrates with backend
+    // Call our press monitor API with LangGraph backend integration
     const url = new URL(request.url);
-    const endpoint = `${url.protocol}//${url.host}/api/press-monitor`;
+    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-langgraph`;
       
-    console.log("Calling press monitor endpoint:", endpoint);
+    console.log("Calling press monitor LangGraph endpoint:", endpoint);
     
     const pressResponse = await fetch(endpoint, {
       method: "POST",

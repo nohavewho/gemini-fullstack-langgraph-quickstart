@@ -1,6 +1,6 @@
 /**
- * Press Monitor API - AI SDK v5 + LangGraph Integration
- * Calls backend graph for real press monitoring with web search
+ * Press Monitor API - AI SDK v5 + LangGraph Backend Integration
+ * This properly integrates with the Python LangGraph backend for real web search
  */
 
 import { streamText, generateText } from 'ai';
@@ -26,16 +26,66 @@ export default async function handler(request) {
       stream = true
     } = body;
 
-    // Generate analysis with AI directly - backend integration removed for now
+    // Try to call LangGraph backend for real press monitoring with web search
     let result = null;
-    console.log('Generating analysis with AI...');
+    
+    // Check if backend is available - could be local dev or production
+    const possibleBackends = [
+      process.env.LANGGRAPH_BACKEND_URL,
+      'https://airesearchprojects.com:2024', // Production backend
+      'http://localhost:2024', // Local development
+    ].filter(url => url && url !== 'undefined' && url !== 'https://your-langgraph-backend.com');
+
+    for (const backendUrl of possibleBackends) {
+      try {
+        console.log('Trying LangGraph backend:', backendUrl);
+        
+        // Construct query for backend
+        let backendQuery = searchQuery || `monitor press about azerbaijan`;
+        
+        // Add mode/preset info to query
+        if (mode !== 'custom') {
+          backendQuery += ` mode: ${mode}`;
+        } else if (options.countries) {
+          backendQuery += ` countries: ${options.countries.join(', ')}`;
+        }
+        
+        // Call the research endpoint which handles press monitoring
+        const backendResponse = await fetch(`${backendUrl}/api/research`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: backendQuery,
+            effort: 'high', // Always use high effort for press monitoring
+            model: 'gemini-2.5-flash-preview-05-20'
+          }),
+          // Short timeout to quickly fallback if backend is not available
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (backendResponse.ok) {
+          const data = await backendResponse.json();
+          if (data.success) {
+            result = { digest: data.result };
+            console.log('Successfully got response from LangGraph backend');
+            break;
+          }
+        }
+      } catch (error) {
+        console.log(`Backend ${backendUrl} not available:`, error.message);
+        continue;
+      }
+    }
+
+    // If no backend available, use AI SDK to generate analysis
+    if (!result) {
+      console.log('No LangGraph backend available, using AI SDK fallback');
       
       // Parse the query to understand user intent
-      let targetCountries = ['AZ']; // Default target
       let sourceCountries = [];
       let dateRange = '';
       
-      // Extract preset/mode from query like "Анализ прессы: neighbors_priority, период: 02.06.2025 - 09.06.2025"
+      // Extract preset/mode from query
       const presetMatch = searchQuery.match(/(?:Press analysis|Анализ прессы|Basın analizi|Mətbuat təhlili):\s*(\w+)/i);
       const periodMatch = searchQuery.match(/(?:period|период|dönem|dövr):\s*([\d\.\-\s]+)/i);
       
@@ -64,7 +114,7 @@ export default async function handler(request) {
         sourceCountries = options.countries;
       }
       
-      // Country names mapping for better output
+      // Country names mapping
       const countryNames = {
         'TR': 'Turkey', 'RU': 'Russia', 'IR': 'Iran', 'GE': 'Georgia', 'AM': 'Armenia',
         'KZ': 'Kazakhstan', 'UZ': 'Uzbekistan', 'TM': 'Turkmenistan', 'KG': 'Kyrgyzstan', 'TJ': 'Tajikistan',

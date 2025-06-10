@@ -35,6 +35,12 @@
     "api/press-monitor.js": {
       "maxDuration": 300
     },
+    "api/press-monitor-working.js": {
+      "maxDuration": 300
+    },
+    "api/press-monitor-langgraph.js": {
+      "maxDuration": 300
+    },
     "api/chat.js": {
       "maxDuration": 300
     },
