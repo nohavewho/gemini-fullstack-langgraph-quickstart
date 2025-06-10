@@ -336,7 +336,7 @@ IMPORTANT: Write EVERYTHING in ${languageName} language!`;
     maxTokens: 4000,
   });
 
-  return response.toDataStreamResponse();
+  return response.toTextStreamResponse();
 }
 
 export default async function handler(request) {
