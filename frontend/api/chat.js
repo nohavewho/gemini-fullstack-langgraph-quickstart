@@ -20,11 +20,11 @@ export default async function handler(request) {
       throw new Error("No user message found");
     }
 
-    // Call our press monitor API - use minimal version for stability
+    // Call our press monitor API - use working version with full functionality
     const url = new URL(request.url);
-    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-minimal`;
+    const endpoint = `${url.protocol}//${url.host}/api/press-monitor-working`;
       
-    console.log("Calling press monitor minimal endpoint:", endpoint);
+    console.log("Calling press monitor working endpoint:", endpoint);
     
     const pressResponse = await fetch(endpoint, {
       method: "POST",

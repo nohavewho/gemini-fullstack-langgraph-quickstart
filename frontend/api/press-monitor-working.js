@@ -1,7 +1,10 @@
 /**
  * Working Press Monitor for Vercel
- * Simplified version that works within Vercel limits
+ * Full functionality with AI SDK v5
  */
+
+import { generateText } from 'ai';
+import { google } from '@ai-sdk/google';
 
 export const config = {
   runtime: 'edge',
@@ -432,7 +435,8 @@ async function runPressMonitor(targetCountries, sourceCountries, articlesPerLang
   const allArticles = [];
   const coverageByCountry = {};
   
-  for (const countryCode of sourceCountries) {
+  // Process countries in parallel to save time
+  const countryPromises = sourceCountries.map(async (countryCode) => {
     const langCode = getCountryLanguageCode(countryCode);
     const countryConfig = COUNTRY_SOURCES[countryCode] || {
       sources: ['National News Agency'],
@@ -453,10 +457,21 @@ async function runPressMonitor(targetCountries, sourceCountries, articlesPerLang
       // Analyze sentiment in BATCH to save time
       const analyzedArticles = await analyzeSentimentBatch(articles, targetCountries, GEMINI_API_KEY, model);
       
-      coverageByCountry[countryCode] = analyzedArticles;
-      allArticles.push(...analyzedArticles);
+      return { countryCode, articles: analyzedArticles };
     } catch (error) {
       console.error(`Error processing ${countryCode}:`, error);
+      return { countryCode, articles: [] };
+    }
+  });
+  
+  // Wait for all countries to complete
+  const results = await Promise.all(countryPromises);
+  
+  // Collect results
+  for (const { countryCode, articles } of results) {
+    if (articles.length > 0) {
+      coverageByCountry[countryCode] = articles;
+      allArticles.push(...articles);
     }
   }
 
@@ -490,43 +505,17 @@ function getCountryLanguageCode(countryCode) {
 }
 
 async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash') {
-  // Add timeout using AbortController
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
-  
+  // Use AI SDK instead of direct API calls
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: temperature,
-          maxOutputTokens: 2048,
-        }
-      }),
-      signal: controller.signal
+    const { text } = await generateText({
+      model: google(model),
+      prompt,
+      temperature,
+      maxTokens: 2048,
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    clearTimeout(timeoutId);
-    return data.candidates[0].content.parts[0].text;
+    return text;
   } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('Gemini API timeout after 25 seconds');
-    }
+    console.error('AI SDK error:', error);
     throw error;
   }
 }
