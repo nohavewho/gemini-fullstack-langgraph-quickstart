@@ -41,6 +41,12 @@
     "api/press-monitor-langgraph.js": {
       "maxDuration": 300
     },
+    "api/press-monitor-minimal.js": {
+      "maxDuration": 60
+    },
+    "api/test-ai-sdk.js": {
+      "maxDuration": 60
+    },
     "api/chat.js": {
       "maxDuration": 300
     },
