@@ -514,13 +514,21 @@ async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0
       signal: controller.signal
     });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${response.status} - ${error}`);
-  }
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    }
 
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
+    const data = await response.json();
+    clearTimeout(timeoutId);
+    return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Gemini API timeout after 25 seconds');
+    }
+    throw error;
+  }
 }
 
 async function generateRealisticArticles(countryCode, langCode, targetCountries, countryConfig, count, dateStr, apiKey, model) {
