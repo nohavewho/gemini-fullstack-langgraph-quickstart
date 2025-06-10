@@ -309,18 +309,23 @@ Example format:
   });
   
   try {
+    console.log('Raw AI response:', text.substring(0, 200) + '...');
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const articles = JSON.parse(jsonMatch[0]);
+      console.log(`Parsed ${articles.length} articles for ${countryCode}`);
       return articles.map(article => ({
         ...article,
         country: countryCode,
         language: langCode,
         date: dateStr
       }));
+    } else {
+      console.error('No JSON array found in response');
     }
   } catch (error) {
     console.error('Article generation error:', error);
+    console.error('Text was:', text);
   }
   
   return [];
