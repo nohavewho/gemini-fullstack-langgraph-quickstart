@@ -3,12 +3,23 @@
  * Using streaming for real-time updates
  */
 
-import { streamText } from 'ai';
+import { streamText, generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 
 export const config = {
   runtime: 'edge',
   maxDuration: 300,
+};
+
+// Initialize Google provider with API key
+const getGoogleModel = (modelId = 'gemini-2.0-flash-exp') => {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Google API key not found in environment variables');
+  }
+  return google(modelId, {
+    apiKey: apiKey
+  });
 };
 
 // Language configurations
@@ -209,14 +220,12 @@ Available countries: ${Object.keys(COUNTRY_NAMES).join(', ')}
 
 Return JSON: { "targetCountries": ["XX"], "sourceCountries": ["YY", "ZZ"] }`;
 
-  const response = await streamText({
-    model: google(model),
+  const { text } = await generateText({
+    model: getGoogleModel(model),
     prompt,
     temperature: 0.3,
     maxTokens: 500,
   });
-
-  const text = await response.text;
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -264,14 +273,12 @@ For EACH article provide:
 
 Format as JSON array with ${count} articles.`;
 
-  const response = await streamText({
-    model: google(model),
+  const { text } = await generateText({
+    model: getGoogleModel(model),
     prompt,
     temperature: 0.8,
     maxTokens: 2000,
   });
-
-  const text = await response.text;
   
   try {
     const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -323,13 +330,13 @@ Create a digest in ${languageName} with:
 IMPORTANT: Write EVERYTHING in ${languageName} language!`;
 
   const response = await streamText({
-    model: google(model),
+    model: getGoogleModel(model),
     prompt,
     temperature: 0.7,
     maxTokens: 4000,
   });
 
-  return response.toAIStream();
+  return response.toDataStreamResponse();
 }
 
 export default async function handler(request) {
@@ -432,14 +439,12 @@ export default async function handler(request) {
       });
     } else {
       // Non-streaming response
-      const response = await streamText({
-        model: google(model),
-        prompt: `Create a brief summary of press coverage about ${targetCountries.join(', ')} in ${userLanguage}`,
+      const { text: digest } = await generateText({
+        model: getGoogleModel(model),
+        prompt: `Create a brief summary of press coverage about ${targetCountries.join(', ')} based on these articles:\n\n${allArticles.map(a => `${a.country}: ${a.headline}`).join('\n')}\n\nWrite in ${userLanguage} language.`,
         temperature: 0.7,
         maxTokens: 1000,
       });
-      
-      const digest = await response.text;
       
       return new Response(JSON.stringify({
         success: true,
