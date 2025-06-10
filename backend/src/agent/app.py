@@ -19,6 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "press-monitor-backend"}
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "Press Monitor LangGraph Backend", "status": "running"}
+
 # Import research graph and press monitoring
 from .graph import graph
 from .press_monitor_langgraph import (

@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 from langgraph.types import Send
 from langchain_google_genai import ChatGoogleGenerativeAI
-from google import genai
+import google.generativeai as genai
 import asyncio
 import re
 
