@@ -5,7 +5,9 @@ export const auth0Config = {
   domain: AUTH0_DOMAIN,
   clientId: AUTH0_CLIENT_ID,
   authorizationParams: {
-    redirect_uri: typeof window !== 'undefined' ? window.location.origin + '/callback' : 'https://airesearchprojects.com/callback',
+    redirect_uri: typeof window !== 'undefined' 
+      ? window.location.origin + '/callback' 
+      : 'http://localhost:8000/callback',
     scope: 'openid profile email'
   },
   useRefreshTokens: true,

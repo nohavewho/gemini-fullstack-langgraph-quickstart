@@ -29,6 +29,10 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AnalyticsPanel } from "@/components/chat/AnalyticsPanel";
 
+// Import AI SDK v5 alpha
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+
 // Import constants and types
 import { LANGUAGES, COUNTRIES, PRESET_GROUPS } from "@/lib/constants";
 import { Message as LocalMessage, AnalysisResult } from "@/lib/types";
@@ -92,10 +96,6 @@ export function AzerbaijanPressMonitoringAI() {
     'Exhaustive deep analysis'
   ];
   
-  // Local state for input management
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  
   // Chat history management
   const {
     sessions,
@@ -108,32 +108,75 @@ export function AzerbaijanPressMonitoringAI() {
     deleteSession
   } = useChatHistory();
   
-  // Local messages state - using SDK message format
-  const [messages, setMessages] = useState<Array<{
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    createdAt?: Date;
-  }>>([]);
+  // AI SDK v5 alpha with ChatInit and transport
+  const transport = new DefaultChatTransport({
+    api: '/api/chat'
+  });
   
-  // Load messages when session changes
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport,
+    maxSteps: 5
+  });
+  
+  const isLoading = status === 'streaming' || status === 'submitted';
+  
+  // Local input state (AI SDK v5 doesn't provide input management)
+  const [input, setInput] = useState('');
+  
+  // Load messages when session changes - AI SDK v5 handles this differently
   useEffect(() => {
     if (currentSession && dbMessages.length > 0) {
       // Convert database messages to AI SDK format
       const convertedMessages = dbMessages.map((msg) => ({
         id: msg.id,
         role: msg.type === 'human' ? 'user' as const : 'assistant' as const,
-        content: msg.content,
+        content: [{ type: 'text', text: msg.content }], // AI SDK v5 format
         createdAt: new Date(msg.createdAt)
       }));
-      setMessages(convertedMessages);
-    } else {
-      setMessages([]);
+      // chatStore.setMessages(convertedMessages); // Will implement if needed
     }
-  }, [currentSession, dbMessages, setMessages]);
+  }, [currentSession, dbMessages]);
   
 
 
+  // Simple auto-send function for presets
+  const handleSendMessageWithText = async (messageText: string) => {
+    if (!messageText.trim() || !dbUser) return;
+    
+    // Create session if needed
+    let sessionToUse = currentSession;
+    if (!sessionToUse) {
+      sessionToUse = await createSession(
+        messageText.substring(0, 50) + '...',
+        undefined,
+        selectedCountries
+      );
+    }
+
+    // Save user message to database first
+    if (sessionToUse) {
+      await addMessage('human', messageText, {
+        targetCountries: [targetCountry],
+        selectedCountries,
+        dateRange: date
+      });
+    }
+
+    // Use AI SDK v5 sendMessage
+    await sendMessage({
+      role: 'user',
+      parts: [{ type: 'text', text: messageText }]
+    }, {
+      body: {
+        mode: selectedCountries.length > 0 ? 'custom' : 'neighbors_priority',
+        selectedCountries,
+        effortLevel,
+        model: selectedModel
+      }
+    });
+  };
+
+  // AI SDK handles this automatically now
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim()) return;
@@ -152,264 +195,40 @@ export function AzerbaijanPressMonitoringAI() {
       );
     }
 
-    // Prepare the query with country context
-    const targetCountryName = COUNTRIES.find(c => c.code === targetCountry)?.name || '';
-    
-    const pressCountryNames = selectedCountries.map(code => 
-      COUNTRIES.find(c => c.code === code)?.name
-    ).join(", ");
-
-    // Contextual query would use date formatting here if needed
-
-    setIsLoading(true);
-    const userInput = input;
-    setInput(''); // Clear input immediately
-    
-    try {
-      // Save user message to database
-      if (sessionToUse) {
-        await addMessage('human', userInput, {
-          targetCountries: [targetCountry],
-          selectedCountries,
-          dateRange: date
-        });
-      }
-      // Add user message to local state
-      const userMessage = {
-        id: Math.random().toString(36).substring(2, 11),
-        role: 'user' as const,
-        content: userInput,
-        createdAt: new Date()
-      };
-      setMessages(prev => [...prev, userMessage]);
-      
-      // Call real Press Monitor API with original format
-      try {
-        // Determine mode based on selected countries
-        let mode = 'neighbors_priority';
-        const countrySet = new Set(selectedCountries);
-        
-        if (countrySet.has('TR') && countrySet.has('RU') && countrySet.has('IR')) {
-          mode = 'neighbors_priority';
-        } else if (countrySet.has('KZ') && countrySet.has('UZ')) {
-          mode = 'central_asia_focus';
-        } else if (countrySet.has('DE') && countrySet.has('FR')) {
-          mode = 'europe_monitor';
-        } else if (selectedCountries.length > 6) {
-          mode = 'global_scan';
-        } else if (selectedCountries.length > 0) {
-          mode = 'custom';
-        }
-
-        console.log('Sending request to press monitor:', {
-          mode,
-          effortLevel,
-          selectedModel,
-          searchQuery: userInput,
-          userLanguage: language
-        });
-        
-        // Используем только working endpoint который точно работает
-        const endpoint = '/api/press-monitor-working';
-        
-        // Add retry logic for timeouts
-        let retries = 0;
-        let response;
-        
-        while (retries < 2) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 58000); // 58 seconds timeout
-            
-            response = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                mode: mode,
-                options: mode === 'custom' ? {
-                  countries: selectedCountries // Just send country codes, backend will figure out languages
-                } : {},
-                effortLevel: Math.min(effortLevel, 3), // Limit effort level to avoid timeouts
-                model: selectedModel,
-                searchQuery: userInput,
-                userLanguage: language
-              }),
-              signal: controller.signal
-            }).finally(() => clearTimeout(timeoutId));
-            
-            if (response.ok) break;
-            
-            if (response.status === 504 || response.status === 408) {
-              retries++;
-              if (retries < 2) {
-                console.log(`Timeout error, retrying (attempt ${retries + 1}/2)...`);
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-                continue;
-              }
-            }
-            
-            const errorText = await response.text();
-            console.error('API Error:', response.status, errorText);
-            throw new Error(`Failed to get analysis: ${response.status}`);
-          } catch (error) {
-            if (error.name === 'AbortError') {
-              retries++;
-              if (retries < 2) {
-                console.log(`Request timeout, retrying (attempt ${retries + 1}/2)...`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                continue;
-              }
-              throw new Error('Request timeout. Please try with fewer countries or lower effort level.');
-            }
-            throw error;
-          }
-        }
-
-        if (!response || !response.ok) {
-          const errorText = response ? await response.text() : 'No response';
-          console.error('API Error:', response?.status, errorText);
-          throw new Error(`Failed to get analysis: ${response?.status || 'timeout'}`);
-        }
-
-        // Handle regular JSON response
-        if (false) { // Отключаем streaming полностью
-          const reader = response.body?.getReader();
-          const decoder = new TextDecoder();
-          let streamingMessage = {
-            id: Math.random().toString(36).substring(2, 11),
-            role: 'assistant' as const,
-            content: '',
-            createdAt: new Date()
-          };
-          
-          // Add initial streaming message
-          setMessages(prev => [...prev, streamingMessage]);
-          
-          let progressContent = '';
-          let buffer = '';
-          
-          while (reader) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            
-            for (const line of lines) {
-              if (line.startsWith('event:')) {
-                const eventType = line.substring(6).trim();
-              } else if (line.startsWith('data:')) {
-                try {
-                  const data = JSON.parse(line.substring(5));
-                  
-                  // Update progress content based on event type
-                  if (data.type === 'start' || data.type === 'analyzing') {
-                    progressContent = `🔍 ${data.message}`;
-                  } else if (data.type === 'country_start') {
-                    progressContent += `\n\n${data.message}`;
-                  } else if (data.type === 'queries_generated') {
-                    progressContent += `\n  • ${data.message}`;
-                  } else if (data.type === 'article_found') {
-                    progressContent += `\n  • Found: "${data.title}" - ${data.source}`;
-                  } else if (data.type === 'country_complete') {
-                    progressContent += `\n  ${data.message}`;
-                  } else if (data.type === 'generating_digest') {
-                    progressContent += `\n\n📊 ${data.message}`;
-                  } else if (data.type === 'complete') {
-                    // Final result
-                    streamingMessage.content = data.digest;
-                    setMessages(prev => prev.map(m => 
-                      m.id === streamingMessage.id ? streamingMessage : m
-                    ));
-                    
-                    // Save to session
-                    if (sessionToUse) {
-                      await addMessage('ai', streamingMessage.content, {
-                        targetCountries: [targetCountry],
-                        selectedCountries,
-                        dateRange: date
-                      });
-                    }
-                    return;
-                  }
-                  
-                  // Update streaming message with progress
-                  if (data.type !== 'complete') {
-                    streamingMessage.content = progressContent;
-                    setMessages(prev => prev.map(m => 
-                      m.id === streamingMessage.id ? { ...streamingMessage } : m
-                    ));
-                  }
-                } catch (e) {
-                  console.error('Error parsing SSE data:', e);
-                }
-              }
-            }
-          }
-        } else {
-          // Handle regular JSON response
-          const data = await response.json();
-          
-          if (data.success) {
-            // Create AI message with result
-            const aiMessage = {
-              id: Math.random().toString(36).substring(2, 11),
-              role: 'assistant' as const,
-              content: data.result || 'Press monitoring completed.',
-              createdAt: new Date()
-            };
-            setMessages(prev => [...prev, aiMessage]);
-            
-            // Save to session
-            if (sessionToUse) {
-              await addMessage('ai', aiMessage.content, {
-                targetCountries: [targetCountry],
-                selectedCountries,
-                dateRange: date
-              });
-            }
-          } else {
-            // Check if it's a user-friendly error message
-            if (data.error && (data.error.includes('specify') || data.error.includes('укажите'))) {
-              const errorMsg = {
-                id: Math.random().toString(36).substring(2, 11),
-                role: 'assistant' as const,
-                content: data.error,
-                createdAt: new Date()
-              };
-              setMessages(prev => [...prev, errorMsg]);
-              return; // Don't throw, just show the message
-            }
-            throw new Error(data.error || 'Failed to get press monitor results');
-          }
-        }
-      } catch (error) {
-        console.error('Error calling Press Monitor API:', error);
-        const errorMessage = {
-          id: Math.random().toString(36).substring(2, 11),
-          role: 'assistant' as const,
-          content: error.message.includes('timeout') 
-            ? 'The analysis is taking too long. Please try with fewer countries or a lower effort level (1-3).'
-            : error.message.includes('specify') || error.message.includes('укажите')
-            ? error.message
-            : 'Sorry, I encountered an error analyzing the press coverage. Please try again.',
-          createdAt: new Date()
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      }
-    } catch (error) {
-      console.error('Chat error:', error);
-    } finally {
-      setIsLoading(false);
+    // Save user message to database first
+    if (sessionToUse) {
+      await addMessage('human', input, {
+        targetCountries: [targetCountry],
+        selectedCountries,
+        dateRange: date
+      });
     }
+
+    const userInput = input;
+    setInput(''); // Clear input
+    
+    // Use AI SDK v5 sendMessage
+    await sendMessage({
+      role: 'user',
+      parts: [{ type: 'text', text: userInput }]
+    }, {
+      body: {
+        mode: selectedCountries.length > 0 ? 'custom' : 'neighbors_priority',
+        selectedCountries,
+        effortLevel,
+        model: selectedModel
+      }
+    });
   };
 
+  // AI SDK v5 handles all API calls automatically through /api/chat
 
   const handlePresetSelect = (countryCodes: string[]) => {
     setPendingPresetCountries(countryCodes);
-    setShowDatePicker(true);
+    setSelectedCountries(countryCodes);
+    // setShowCountrySelector(true); // Show country selector first  
     setShowPresets(false);
+    setShowDatePicker(true);
   };
 
   const handleDateSelect = async (newDate: DateRange | undefined) => {
@@ -427,18 +246,29 @@ export function AzerbaijanPressMonitoringAI() {
     
     const dateStr = newDate.from && newDate.to ? 
       `${format(newDate.from, 'dd.MM.yyyy')} - ${format(newDate.to, 'dd.MM.yyyy')}` : 
-      'последние новости';
+      (language === 'ru' ? 'последние новости' : language === 'tr' ? 'son haberler' : language === 'az' ? 'son xəbərlər' : 'latest news');
     
-    const query = `Анализ прессы: ${presetName}, период: ${dateStr}`;
+    const queryPrefix = language === 'ru' ? 'Анализ прессы' : 
+                       language === 'tr' ? 'Basın analizi' : 
+                       language === 'az' ? 'Mətbuat təhlili' : 
+                       'Press analysis';
+    const periodPrefix = language === 'ru' ? 'период' : 
+                        language === 'tr' ? 'dönem' : 
+                        language === 'az' ? 'dövr' : 
+                        'period';
+    
+    const query = `${queryPrefix}: ${presetName}, ${periodPrefix}: ${dateStr}`;
     
     // Clear pending
     setPendingPresetCountries(null);
     
-    // Auto-start analysis
+    // Auto-start analysis with the query directly
     setInput(query);
-    setTimeout(() => {
-      handleSendMessage();
-    }, 100);
+    
+    // Send message directly without waiting for state update
+    if (dbUser) {
+      handleSendMessageWithText(query);
+    }
   };
 
   const handleVoiceInput = () => {
@@ -451,7 +281,7 @@ export function AzerbaijanPressMonitoringAI() {
 
   const handleNewChat = () => {
     setCurrentSession(null);
-    setMessages([]);
+    setMessages([]); // AI SDK v5 way to clear chat
     setAnalysisResults(null);
   };
 
@@ -497,18 +327,7 @@ export function AzerbaijanPressMonitoringAI() {
           onSessionSelect={async (session) => {
             setCurrentSession(session);
             setShowMobileSidebar(false);
-            // Load messages for this session
-            try {
-              const loadedMessages = await getMessages(session.id);
-              setMessages(loadedMessages.map(msg => ({
-                id: msg.id,
-                role: msg.type === 'human' ? 'user' as const : 'assistant' as const,
-                content: msg.content,
-                createdAt: new Date(msg.createdAt)
-              })));
-            } catch (error) {
-              console.error('Error loading messages:', error);
-            }
+            // AI SDK will handle message loading
           }}
           onNewChat={handleNewChat}
           onDeleteSession={deleteSession}
@@ -910,16 +729,13 @@ export function AzerbaijanPressMonitoringAI() {
               ) : (
                 <div className="space-y-4">
                   {messages.map((message) => {
-                    // Get the message text content - AI SDK v5 uses different structure
+                    // Get the message text content - AI SDK v5 uses parts array
                     let messageContent = '';
-                    if ('content' in message && typeof message.content === 'string') {
-                      messageContent = message.content;
-                    } else if ('text' in message) {
-                      messageContent = (message as typeof messages[0] & {text?: string}).text || '';
-                    } else if (Array.isArray((message as typeof messages[0] & {content?: Array<{type: string; text?: string}>}).content)) {
-                      // Handle content array (common in AI SDK v5)
-                      const textContent = ((message as typeof messages[0] & {content?: Array<{type: string; text?: string}>}).content || []).find(c => c.type === 'text');
-                      messageContent = textContent?.text || '';
+                    
+                    if (Array.isArray(message.parts)) {
+                      // AI SDK v5 format: parts is array of message parts
+                      const textPart = message.parts.find(part => part.type === 'text');
+                      messageContent = textPart?.text || '';
                     }
                     
                     // Transform AI SDK message format to our Message format

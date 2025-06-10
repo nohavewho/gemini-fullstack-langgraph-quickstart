@@ -5,7 +5,7 @@
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 300,
+  maxDuration: 300, // Pro account limit - 5 minutes
 };
 
 // Language configurations from backend
@@ -50,7 +50,35 @@ const COUNTRY_NAMES = {
   "UZ": "Uzbekistan",
   "TM": "Turkmenistan",
   "KG": "Kyrgyzstan",
-  "TJ": "Tajikistan"
+  "TJ": "Tajikistan",
+  "UK": "United Kingdom",
+  "SA": "Saudi Arabia",
+  "EG": "Egypt",
+  "JO": "Jordan",
+  "LB": "Lebanon",
+  "MA": "Morocco",
+  "AE": "United Arab Emirates",
+  "QA": "Qatar",
+  "KW": "Kuwait",
+  "BH": "Bahrain",
+  "OM": "Oman",
+  "SY": "Syria",
+  "IQ": "Iraq",
+  "YE": "Yemen",
+  "UA": "Ukraine",
+  "BY": "Belarus",
+  "ES": "Spain",
+  "IT": "Italy",
+  "PT": "Portugal",
+  "JP": "Japan",
+  "KR": "South Korea",
+  "IN": "India",
+  "PK": "Pakistan",
+  "TH": "Thailand",
+  "ID": "Indonesia",
+  "MY": "Malaysia",
+  "VN": "Vietnam",
+  "PH": "Philippines"
 };
 
 // Prompts from backend
@@ -113,6 +141,11 @@ COUNTRY_SCORES: [Individual scores per country if multiple]`
 };
 
 export default async function handler(request) {
+  console.log('Press monitor grounded handler called');
+  console.log('Request method:', request.method);
+  console.log('Environment check - GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
+  console.log('Environment check - GOOGLE_AI_API_KEY exists:', !!process.env.GOOGLE_AI_API_KEY);
+  
   // Handle CORS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
@@ -136,21 +169,44 @@ export default async function handler(request) {
 
   try {
     const body = await request.json();
+    console.log('Request body:', JSON.stringify(body));
+    
     const { 
       mode = 'neighbors_priority', 
       options = {},
       effortLevel = 3,
       model = 'gemini-2.0-flash',
-      searchQuery
+      searchQuery = '',
+      userLanguage = 'en'
     } = body;
 
-    // Map parameters
-    const targetCountries = ['AZ']; // Always Azerbaijan
+    // Default target country is Azerbaijan
+    let targetCountries = ['AZ'];
     let sourceCountries = [];
-    let maxArticles = effortLevel * 5; // 5-25 articles
+    let maxArticles = Math.min(effortLevel, 5); // Max 5 articles for real search to stay under 60s
+    
+    // AI-powered query understanding if searchQuery provided
+    if (searchQuery) {
+      try {
+        const queryAnalysis = await analyzeUserQuery(
+          searchQuery, 
+          process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+          model
+        );
+        if (queryAnalysis.targetCountries && queryAnalysis.targetCountries.length > 0) {
+          targetCountries = queryAnalysis.targetCountries;
+        }
+        if (queryAnalysis.sourceCountries && queryAnalysis.sourceCountries.length > 0) {
+          sourceCountries = queryAnalysis.sourceCountries;
+        }
+      } catch (error) {
+        console.error('Error analyzing query:', error);
+      }
+    }
 
-    // Map mode to source countries
-    switch (mode) {
+    // Map mode to source countries if not set by query
+    if (sourceCountries.length === 0) {
+      switch (mode) {
       case 'neighbors_priority':
         sourceCountries = ['TR', 'RU', 'IR', 'GE', 'AM'];
         maxArticles = 20;
@@ -176,22 +232,35 @@ export default async function handler(request) {
         maxArticles = 8;
         break;
       case 'custom':
-        if (options.languages) {
-          const langToCountry = {
-            'tr': 'TR', 'ru': 'RU', 'fa': 'IR', 'ka': 'GE', 'hy': 'AM',
-            'kk': 'KZ', 'uz': 'UZ', 'tk': 'TM', 'ky': 'KG', 'tg': 'TJ',
-            'de': 'DE', 'fr': 'FR', 'en': 'US', 'zh': 'CN', 'ja': 'JP',
-            'ko': 'KR', 'ar': 'SA', 'es': 'ES', 'pt': 'PT', 'it': 'IT'
-          };
-          sourceCountries = options.languages
-            .map(lang => langToCountry[lang] || 'US')
-            .filter((v, i, a) => a.indexOf(v) === i);
+        if (options.countries && options.countries.length > 0) {
+          sourceCountries = options.countries;
         }
         break;
+      }
+    }
+    
+    // Check if we have source countries
+    if (sourceCountries.length === 0) {
+      const errorMessage = userLanguage === 'ru' 
+        ? 'Пожалуйста, укажите страны для мониторинга прессы. Например: "что пишут в Турции об Азербайджане" или "арабские СМИ об Азербайджане"'
+        : 'Please specify which countries\' media to monitor. For example: "what Turkey writes about Azerbaijan" or "Arab media about Azerbaijan"';
+      
+      return new Response(JSON.stringify({
+        success: false,
+        error: errorMessage
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      });
     }
 
     // Run the press monitoring
-    const result = await runPressMonitor(targetCountries, sourceCountries, maxArticles, model);
+    console.log('Starting press monitor with:', { targetCountries, sourceCountries, maxArticles });
+    const result = await runPressMonitor(targetCountries, sourceCountries, maxArticles, model, userLanguage);
+    console.log('Press monitor completed');
     
     return new Response(JSON.stringify({
       success: true,
@@ -205,9 +274,13 @@ export default async function handler(request) {
 
   } catch (error) {
     console.error('Press monitor error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error type:', error.constructor.name);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error.message,
+      stack: error.stack,
+      type: error.constructor.name
     }), {
       status: 500,
       headers: {
@@ -218,9 +291,68 @@ export default async function handler(request) {
   }
 }
 
+// Analyze user query to extract countries and intent
+async function analyzeUserQuery(query, apiKey, model) {
+  const allCountries = Object.entries(COUNTRY_NAMES).map(([code, name]) => `${code}=${name}`).join(', ');
+  
+  const prompt = `You are an intelligent press monitoring query analyzer. Analyze this query and extract countries.
+
+Query: "${query}"
+
+UNDERSTANDING GROUPS AND REGIONS:
+- "neighbors/соседи" → neighboring countries
+- "arabic world/арабский мир/арабские страны" → Arab countries (SA, EG, JO, LB, MA, AE, QA, KW, BH, OM, SY, IQ, YE)
+- "central asia/центральная азия" → KZ, UZ, TM, KG, TJ
+- "europe/европа" → DE, FR, UK, IT, ES, NL, BE, PL, etc.
+- "caucasus/кавказ" → AZ, GE, AM
+- "gulf states/персидский залив" → SA, AE, QA, KW, BH, OM
+- "post-soviet/постсоветские" → RU, UA, BY, KZ, UZ, GE, AM, AZ, etc.
+- "global powers/мировые державы" → US, CN, RU, UK, FR, DE, JP
+- "turkic world/тюркский мир" → TR, AZ, KZ, UZ, KG, TM
+
+UNDERSTANDING INTENT:
+- If query asks "what X thinks about Y" → Target: Y, Source: X
+- If query asks "news about X in Y media" → Target: X, Source: Y
+- If query asks "X about Y" → Target: Y, Source: X
+- If query mentions only countries without relationship → Target: mentioned countries, Source: auto-select relevant
+- If query mentions a region/group → expand to actual country codes
+
+EXAMPLES:
+- "arabic_world" → Target: ["AZ"], Source: ["SA", "EG", "JO", "LB", "MA"]
+- "что пишут соседи об Азербайджане" → Target: ["AZ"], Source: ["TR", "RU", "IR", "GE", "AM"]
+- "european media about Ukraine" → Target: ["UA"], Source: ["DE", "FR", "UK", "IT", "ES"]
+- "анализ прессы: arabic_world, период: 02.06.2025 - 09.06.2025" → Target: ["AZ"], Source: ["SA", "EG", "JO", "LB", "MA"]
+
+Available countries: ${allCountries}
+
+Return JSON with ISO country codes:
+{
+  "targetCountries": ["XX"],
+  "sourceCountries": ["YY", "ZZ"]
+}`;
+
+  try {
+    const response = await callGemini(prompt, 0.3, apiKey, model);
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      
+      // Validate country codes
+      result.targetCountries = result.targetCountries.filter(code => COUNTRY_NAMES[code]);
+      result.sourceCountries = result.sourceCountries.filter(code => COUNTRY_NAMES[code]);
+      
+      return result;
+    }
+  } catch (error) {
+    console.error('Query analysis error:', error);
+  }
+  return { targetCountries: [], sourceCountries: [] };
+}
+
 // Main press monitoring logic
-async function runPressMonitor(targetCountries, sourceCountries, maxArticles, model) {
+async function runPressMonitor(targetCountries, sourceCountries, maxArticles, model, userLanguage) {
   const startTime = Date.now();
+  // In Vercel Edge Runtime, env vars are available via process.env
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   
   if (!GEMINI_API_KEY) {
@@ -270,7 +402,7 @@ async function runPressMonitor(targetCountries, sourceCountries, maxArticles, mo
   }
 
   // Phase 3: Generate Digest
-  const digest = await generateDigest(analyzedArticles, targetCountries, GEMINI_API_KEY, model);
+  const digest = await generateDigest(analyzedArticles, targetCountries, GEMINI_API_KEY, model, userLanguage);
   
   return digest;
 }
@@ -382,6 +514,7 @@ async function searchNewsWithGrounding(query, languageCode, dateFilter, apiKey, 
   
   try {
     const response = await callGeminiWithGrounding(searchPrompt, apiKey, model);
+    console.log('Search performed:', response.candidates?.[0]?.content?.parts?.[0]?.text || 'No text');
     
     const articles = [];
     
@@ -537,7 +670,7 @@ async function analyzeArticleSentiment(article, targetCountries, apiKey, model) 
   }
 }
 
-async function generateDigest(articles, targetCountries, apiKey, model) {
+async function generateDigest(articles, targetCountries, apiKey, model, userLanguage = 'en') {
   const positiveArticles = articles.filter(a => a.sentiment === 'positive');
   const negativeArticles = articles.filter(a => a.sentiment === 'negative' || a.sentiment === 'critical');
   const neutralArticles = articles.filter(a => a.sentiment === 'neutral');
@@ -572,7 +705,11 @@ TASK: Create a comprehensive, executive-level digest that:
 3. Identifies concerning trends and opportunities
 4. Gives actionable insights for decision makers
 
-Format with clear sections and executive summary.`;
+Format with clear sections and executive summary.
+
+${userLanguage === 'ru' ? 'ВАЖНО: Пиши весь дайджест на русском языке!' : ''}
+${userLanguage === 'tr' ? 'ÖNEMLİ: Tüm özeti Türkçe yaz!' : ''}
+${userLanguage === 'az' ? 'VACIB: Bütün xülasəni Azərbaycan dilində yaz!' : ''}`;
 
   try {
     const digest = await callGemini(digestPrompt, 0.4, apiKey, model);

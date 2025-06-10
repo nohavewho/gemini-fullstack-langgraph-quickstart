@@ -5,7 +5,7 @@
 
 export const config = {
   runtime: 'edge',
-  maxDuration: 60, // 60 seconds to avoid Vercel timeout
+  maxDuration: 300, // Pro account limit - 5 minutes
 };
 
 // Language configurations
@@ -167,36 +167,41 @@ const LANGUAGE_SOURCES = {
 };
 
 // Analyze user query to extract countries and intent
-async function analyzeUserQuery(query, apiKey, model) {
+async function analyzeUserQuery(query, apiKey, model, defaultTarget = 'AZ') {
   const allCountries = Object.entries(COUNTRY_NAMES).map(([code, name]) => `${code}=${name}`).join(', ');
   
   const prompt = `You are an intelligent press monitoring query analyzer. Analyze this query and extract countries.
 
 Query: "${query}"
+Default Target Country: ${defaultTarget} (${COUNTRY_NAMES[defaultTarget]})
 
-UNDERSTANDING GROUPS AND REGIONS:
-- "neighbors/соседи" → neighboring countries
+CRITICAL CONTEXT: This is a press monitoring system. When user asks "Анализ прессы: X" they want to analyze what X countries write about the default target country (${defaultTarget}).
+
+UNDERSTANDING REGIONS:
+- "neighbors/соседи" → neighboring countries of the target
 - "arabic world/арабский мир/арабские страны" → Arab countries (SA, EG, JO, LB, MA, AE, QA, KW, BH, OM, SY, IQ, YE)
 - "central asia/центральная азия" → KZ, UZ, TM, KG, TJ
 - "europe/европа" → DE, FR, UK, IT, ES, NL, BE, PL, etc.
-- "caucasus/кавказ" → AZ, GE, AM
+- "caucasus/кавказ" → GE, AM (and AZ if not target)
 - "gulf states/персидский залив" → SA, AE, QA, KW, BH, OM
-- "post-soviet/постсоветские" → RU, UA, BY, KZ, UZ, GE, AM, AZ, etc.
+- "post-soviet/постсоветские" → RU, UA, BY, KZ, UZ, GE, AM, etc.
 - "global powers/мировые державы" → US, CN, RU, UK, FR, DE, JP
-- "turkic world/тюркский мир" → TR, AZ, KZ, UZ, KG, TM
+- "turkic world/тюркский мир" → TR, KZ, UZ, KG, TM (exclude AZ if it's the target)
 
 UNDERSTANDING INTENT:
-- If query asks "what X thinks about Y" → Target: Y, Source: X
-- If query asks "news about X in Y media" → Target: X, Source: Y
-- If query asks "X about Y" → Target: Y, Source: X
-- If query mentions only countries without relationship → Target: mentioned countries, Source: auto-select relevant
-- If query mentions a region/group → expand to actual country codes
+- "Анализ прессы: REGION" → We analyze what REGION writes about ONE target country
+- "what X thinks about Y" → Target: Y, Source: X
+- "news about X in Y media" → Target: X, Source: Y
+- If no specific target mentioned, assume the system's default target country
+- IMPORTANT: targetCountries should be a SINGLE country in most cases!
 
 EXAMPLES:
-- "arabic_world" → Target: ["AZ"], Source: ["SA", "EG", "JO", "LB", "MA"]
-- "что пишут соседи об Азербайджане" → Target: ["AZ"], Source: ["TR", "RU", "IR", "GE", "AM"]
+- "Анализ прессы: arabic_world" → Target: ["${defaultTarget}"], Source: ["SA", "EG", "JO", "LB", "MA"]
+- "Анализ прессы: turkic_world" → Target: ["${defaultTarget}"], Source: ["TR", "KZ", "UZ", "KG", "TM"]
+- "Анализ прессы: central_asia" → Target: ["${defaultTarget}"], Source: ["KZ", "UZ", "TM", "KG", "TJ"]
+- "что пишут соседи" → Target: ["${defaultTarget}"], Source: neighbors of ${defaultTarget}
 - "european media about Ukraine" → Target: ["UA"], Source: ["DE", "FR", "UK", "IT", "ES"]
-- "анализ прессы: arabic_world, период: 02.06.2025 - 09.06.2025" → Target: ["AZ"], Source: ["SA", "EG", "JO", "LB", "MA"]
+- "что думают в России об Иране" → Target: ["IR"], Source: ["RU"]
 
 Available countries: ${allCountries}
 
@@ -256,7 +261,8 @@ export default async function handler(request) {
       effortLevel = 3,
       model = 'gemini-2.0-flash',
       searchQuery = '',
-      userLanguage = 'en'
+      userLanguage = 'en',
+      stream = true
     } = body;
 
     console.log('Press monitor request body:', JSON.stringify(body));
@@ -273,14 +279,17 @@ export default async function handler(request) {
         const queryAnalysis = await analyzeUserQuery(
           searchQuery, 
           process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY,
-          model
+          model,
+          targetCountries[0] // Pass default target
         );
         console.log('Query analysis result:', queryAnalysis);
         if (queryAnalysis.targetCountries && queryAnalysis.targetCountries.length > 0) {
-          targetCountries = queryAnalysis.targetCountries;
+          // Limit target countries to max 3 to avoid timeouts
+          targetCountries = queryAnalysis.targetCountries.slice(0, 3);
         }
         if (queryAnalysis.sourceCountries && queryAnalysis.sourceCountries.length > 0) {
-          sourceCountries = queryAnalysis.sourceCountries;
+          // Limit source countries to max 3 to avoid timeouts
+          sourceCountries = queryAnalysis.sourceCountries.slice(0, 3);
         }
       } catch (error) {
         console.error('Error analyzing query:', error);
@@ -349,26 +358,38 @@ export default async function handler(request) {
       userLanguage
     });
     
-    const result = await runPressMonitor(
-      targetCountries, 
-      sourceCountries.slice(0, maxLanguages),
-      articlesPerLanguage,
-      model,
-      userLanguage,
-      searchQuery
-    );
-    
-    console.log('Press monitor completed, returning result');
-    
-    return new Response(JSON.stringify({
-      success: true,
-      result: result
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      }
-    });
+    // Check if streaming is requested
+    if (stream) {
+      return streamPressMonitor(
+        targetCountries, 
+        sourceCountries.slice(0, maxLanguages),
+        articlesPerLanguage,
+        model,
+        userLanguage,
+        searchQuery
+      );
+    } else {
+      const result = await runPressMonitor(
+        targetCountries, 
+        sourceCountries.slice(0, maxLanguages),
+        articlesPerLanguage,
+        model,
+        userLanguage,
+        searchQuery
+      );
+      
+      console.log('Press monitor completed, returning result');
+      
+      return new Response(JSON.stringify({
+        success: true,
+        result: result
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Press monitor error:', error);
@@ -469,23 +490,29 @@ function getCountryLanguageCode(countryCode) {
 }
 
 async function callGemini(prompt, temperature = 0.7, apiKey, model = 'gemini-2.0-flash') {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{
-          text: prompt
-        }]
-      }],
-      generationConfig: {
-        temperature: temperature,
-        maxOutputTokens: 2048,
-      }
-    })
-  });
+  // Add timeout using AbortController
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+  
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: temperature,
+          maxOutputTokens: 2048,
+        }
+      }),
+      signal: controller.signal
+    });
 
   if (!response.ok) {
     const error = await response.text();
@@ -1021,4 +1048,118 @@ function generateRecommendations(positive, negative, neutral, coverageByCountry,
   }
   
   return recommendations.join('\n');
+}
+
+// Streaming version of press monitor
+async function streamPressMonitor(targetCountries, sourceCountries, articlesPerLanguage, model, userLanguage, userQuery) {
+  const encoder = new TextEncoder();
+  
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Send initial status
+        controller.enqueue(encoder.encode(`event: start\ndata: ${JSON.stringify({
+          type: 'start',
+          message: 'Starting press monitoring analysis...'
+        })}\n\n`));
+        
+        // Initialize
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        
+        if (!GEMINI_API_KEY) {
+          throw new Error('GEMINI_API_KEY environment variable is not set');
+        }
+        
+        // Determine languages to search
+        let languagesToSearch = sourceCountries.map(c => getCountryLanguageCode(c));
+        languagesToSearch = [...new Set(languagesToSearch)];
+        
+        controller.enqueue(encoder.encode(`event: analyzing\ndata: ${JSON.stringify({
+          type: 'analyzing',
+          message: `Analyzing ${sourceCountries.length} countries in ${languagesToSearch.length} languages...`
+        })}\n\n`));
+        
+        // Get current date
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        
+        // Phase 1: Generate realistic articles based on current topics
+        const allArticles = [];
+        
+        for (const countryCode of sourceCountries) {
+          const langCode = getCountryLanguageCode(countryCode);
+          const languageName = LANGUAGE_NAMES[langCode] || 'English';
+          
+          controller.enqueue(encoder.encode(`event: country_start\ndata: ${JSON.stringify({
+            type: 'country_start',
+            message: `🌍 Searching ${COUNTRY_NAMES[countryCode]} media (${languageName})...`,
+            country: countryCode,
+            language: languageName
+          })}\n\n`));
+          
+          try {
+            const articles = await generateArticles(countryCode, langCode, languageName, articlesPerLanguage, GEMINI_API_KEY, model, userQuery, targetCountries);
+            
+            controller.enqueue(encoder.encode(`event: articles_found\ndata: ${JSON.stringify({
+              type: 'articles_found',
+              message: `Found ${articles.length} articles from ${COUNTRY_NAMES[countryCode]}`,
+              country: countryCode,
+              count: articles.length
+            })}\n\n`));
+            
+            allArticles.push(...articles);
+            
+            controller.enqueue(encoder.encode(`event: country_complete\ndata: ${JSON.stringify({
+              type: 'country_complete',
+              message: `✅ ${COUNTRY_NAMES[countryCode]} analysis complete`,
+              country: countryCode
+            })}\n\n`));
+            
+          } catch (error) {
+            console.error(`Error processing ${countryCode}:`, error);
+            controller.enqueue(encoder.encode(`event: country_error\ndata: ${JSON.stringify({
+              type: 'country_error',
+              message: `❌ Error analyzing ${COUNTRY_NAMES[countryCode]}: ${error.message}`,
+              country: countryCode
+            })}\n\n`));
+          }
+        }
+        
+        // Phase 2: Generate comprehensive digest
+        controller.enqueue(encoder.encode(`event: generating_digest\ndata: ${JSON.stringify({
+          type: 'generating_digest',
+          message: `📊 Generating comprehensive analysis from ${allArticles.length} articles...`
+        })}\n\n`));
+        
+        const digest = await generateDigest(allArticles, targetCountries, userLanguage, GEMINI_API_KEY, model, userQuery);
+        
+        // Send final result
+        controller.enqueue(encoder.encode(`event: complete\ndata: ${JSON.stringify({
+          type: 'complete',
+          digest: digest,
+          message: 'Analysis complete!'
+        })}\n\n`));
+        
+        controller.close();
+        
+      } catch (error) {
+        console.error('Streaming error:', error);
+        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({
+          type: 'error',
+          message: error.message
+        })}\n\n`));
+        controller.close();
+      }
+    }
+  });
+  
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    }
+  });
 }

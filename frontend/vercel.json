@@ -30,5 +30,16 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/press-monitor-working.js": {
+      "maxDuration": 300
+    },
+    "api/press-monitor-grounded.js": {
+      "maxDuration": 300
+    },
+    "api/press-monitor-ai-sdk.js": {
+      "maxDuration": 300
+    }
+  }
 }

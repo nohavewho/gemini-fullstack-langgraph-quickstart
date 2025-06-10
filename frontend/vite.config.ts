@@ -13,10 +13,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 8000,
+    port: 3000,
     host: true,
     hmr: {
-      port: 8000,
+      port: 3000,
     },
     proxy: {
       // Proxy API requests to mock server in development

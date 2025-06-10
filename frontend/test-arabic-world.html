@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Arabic World Query</title>
+</head>
+<body>
+    <h1>Testing Press Monitor with Arabic World</h1>
+    <button onclick="testQuery()">Test Arabic World Query</button>
+    <pre id="result"></pre>
+
+    <script>
+    async function testQuery() {
+        const resultDiv = document.getElementById('result');
+        resultDiv.textContent = 'Testing...';
+        
+        try {
+            const response = await fetch('http://localhost:8000/api/press-monitor-grounded', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    mode: 'custom',
+                    effortLevel: 2,
+                    model: 'gemini-2.0-flash',
+                    searchQuery: 'Анализ прессы: arabic_world',
+                    userLanguage: 'ru'
+                })
+            });
+            
+            const data = await response.json();
+            resultDiv.textContent = JSON.stringify(data, null, 2);
+        } catch (error) {
+            resultDiv.textContent = 'Error: ' + error.message;
+        }
+    }
+    </script>
+</body>
+</html>
