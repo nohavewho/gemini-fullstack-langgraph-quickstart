@@ -5,7 +5,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const RAILWAY_BACKEND_URL = process.env.RAILWAY_BACKEND_URL || 'http://localhost:8000';
+    // Allow overriding the local backend URL for development
+    const RAILWAY_BACKEND_URL =
+      process.env.RAILWAY_BACKEND_URL ||
+      process.env.LOCAL_BACKEND_URL ||
+      'http://localhost:2024';
     
     console.log('[API Proxy] Press monitor request received:', JSON.stringify(req.body));
     console.log('[API Proxy] Backend URL:', RAILWAY_BACKEND_URL);

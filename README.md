@@ -33,7 +33,7 @@ Follow these steps to get the application running locally for development and te
     1.  Navigate to the `backend/` directory.
     2.  Create a file named `.env` by copying the `backend/.env.example` file.
     3.  Open the `.env` file and add your Gemini API key: `GEMINI_API_KEY="YOUR_ACTUAL_API_KEY"`
-
+-   **`LOCAL_BACKEND_URL`** (optional) should point to your running backend, e.g. `http://localhost:2024`, so frontend proxies work in development.
 **2. Install Dependencies:**
 
 **Backend:**
@@ -104,5 +104,4 @@ Open your browser and navigate to `http://localhost:8123/app/` to see the applic
 - [Google Gemini](https://ai.google.dev/models/gemini) - LLM for query generation, reflection, and answer synthesis.
 
 ## License
-
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details. 
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
