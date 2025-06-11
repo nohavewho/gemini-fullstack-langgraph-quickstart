@@ -93,8 +93,11 @@ async def run_press_monitor_stream(request: Request):
         target_countries = data.get("target_countries", ["azerbaijan"])
         source_countries = data.get("source_countries", [])
         search_mode = data.get("search_mode", "about")
+        date_from = data.get("date_from")
+        date_to = data.get("date_to")
         
         print(f"📰 Streaming press monitor - Target: {target_countries}, Mode: {search_mode}")
+        print(f"📅 Date range: {date_from} to {date_to}")
         
         async def generate_stream():
             try:
@@ -109,6 +112,11 @@ async def run_press_monitor_stream(request: Request):
                 query = f"monitor press about {' '.join(target_countries)}"
                 if search_mode == "in" and source_countries:
                     query += f" in {' '.join(source_countries)}"
+                
+                # Add date range to query if provided
+                if date_from and date_to:
+                    query += f" from {date_from} to {date_to}"
+                    yield f"data: {json.dumps({'type': 'status', 'message': f'Searching press from {date_from} to {date_to}...'})}\n\n"
                 
                 # Initialize language progress
                 language_progress = {}

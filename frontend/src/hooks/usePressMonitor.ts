@@ -32,6 +32,10 @@ export interface PressMonitorOptions {
   targetCountries: string[];
   sourceCountries?: string[];
   searchMode?: 'about' | 'in' | 'cross_reference';
+  dateRange?: {
+    from: Date;
+    to: Date;
+  };
 }
 
 export function usePressMonitor() {
@@ -50,6 +54,8 @@ export function usePressMonitor() {
   });
 
   const runMonitor = useCallback(async (options: PressMonitorOptions) => {
+    console.log('[usePressMonitor] Starting monitor with options:', options);
+    
     setState({
       status: 'loading',
       phase: null,
@@ -65,16 +71,26 @@ export function usePressMonitor() {
     });
 
     try {
+      const requestBody = {
+        target_countries: options.targetCountries,
+        source_countries: options.sourceCountries || [],
+        search_mode: options.searchMode || 'about',
+      };
+      
+      // Add date range if provided
+      if (options.dateRange) {
+        requestBody.date_from = options.dateRange.from.toISOString().split('T')[0];
+        requestBody.date_to = options.dateRange.to.toISOString().split('T')[0];
+      }
+      
+      console.log('[usePressMonitor] Request body:', requestBody);
+      
       const response = await fetch('/api/press-monitor-langgraph', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          target_countries: options.targetCountries,
-          source_countries: options.sourceCountries || [],
-          search_mode: options.searchMode || 'about',
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -103,14 +119,16 @@ export function usePressMonitor() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
+              console.log('[usePressMonitor] SSE event:', data.type, data);
               handleStreamData(data);
             } catch (e) {
-              console.error('Error parsing SSE data:', e);
+              console.error('[usePressMonitor] Error parsing SSE data:', e);
             }
           }
         }
       }
     } catch (error) {
+      console.error('[usePressMonitor] Error:', error);
       setState(prev => ({
         ...prev,
         status: 'error',
@@ -120,6 +138,7 @@ export function usePressMonitor() {
   }, []);
 
   const handleStreamData = useCallback((data: any) => {
+    console.log('[usePressMonitor] Stream data:', data);
     switch (data.type) {
       case 'status':
         setState(prev => ({ ...prev, message: data.message }));

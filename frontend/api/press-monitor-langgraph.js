@@ -7,8 +7,9 @@ export default async function handler(req, res) {
   try {
     const RAILWAY_BACKEND_URL = process.env.RAILWAY_BACKEND_URL || 'http://localhost:8000';
     
-    console.log('Press monitor request received:', JSON.stringify(req.body));
-    console.log('Backend URL:', RAILWAY_BACKEND_URL);
+    console.log('[API Proxy] Press monitor request received:', JSON.stringify(req.body));
+    console.log('[API Proxy] Backend URL:', RAILWAY_BACKEND_URL);
+    console.log('[API Proxy] Request headers:', req.headers);
     
     // Forward request to Railway backend streaming endpoint
     const response = await fetch(`${RAILWAY_BACKEND_URL}/api/press-monitor-stream`, {
@@ -22,8 +23,12 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      throw new Error(`Backend API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('[API Proxy] Backend error:', response.status, errorText);
+      throw new Error(`Backend API error: ${response.status} - ${errorText}`);
     }
+    
+    console.log('[API Proxy] Backend response OK, starting stream...');
 
     // Set SSE headers for streaming response
     res.setHeader('Content-Type', 'text/event-stream');

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Press Monitor Debug Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .log-entry {
+            padding: 5px;
+            margin: 2px 0;
+            background: #f8f8f8;
+            border-left: 3px solid #ddd;
+        }
+        .log-entry.success {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+        .log-entry.error {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+        .log-entry.info {
+            border-color: #2196f3;
+            background: #e3f2fd;
+        }
+        .log-entry.warning {
+            border-color: #ff9800;
+            background: #fff3e0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #2196f3;
+            color: white;
+        }
+        button:hover {
+            background: #1976d2;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            overflow-x: auto;
+            border-radius: 4px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-indicator.active {
+            background: #4caf50;
+            animation: pulse 1s infinite;
+        }
+        .status-indicator.error {
+            background: #f44336;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Press Monitor Debug Console</h1>
+        
+        <div class="test-section">
+            <h2>🌐 Environment Check</h2>
+            <div id="env-status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 API Tests</h2>
+            <button onclick="testDirectBackend()">Test Direct Backend</button>
+            <button onclick="testVercelProxy()">Test Vercel Proxy</button>
+            <button onclick="testFullFlow()">Test Full Press Monitor Flow</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Stream Monitor</h2>
+            <div id="stream-status">
+                <span class="status-indicator" id="stream-indicator"></span>
+                <span id="stream-text">Idle</span>
+            </div>
+            <div id="stream-progress" style="margin-top: 10px;"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📝 Debug Logs</h2>
+            <div id="logs"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Network Inspector</h2>
+            <div id="network-logs"></div>
+        </div>
+    </div>
+
+    <script>
+        const logs = document.getElementById('logs');
+        const networkLogs = document.getElementById('network-logs');
+        const envStatus = document.getElementById('env-status');
+        const streamStatus = document.getElementById('stream-status');
+        const streamIndicator = document.getElementById('stream-indicator');
+        const streamText = document.getElementById('stream-text');
+        const streamProgress = document.getElementById('stream-progress');
+
+        // Check environment
+        function checkEnvironment() {
+            const env = {
+                origin: window.location.origin,
+                protocol: window.location.protocol,
+                hostname: window.location.hostname,
+                isProduction: window.location.hostname.includes('airesearchprojects.com'),
+                isVercel: window.location.hostname.includes('vercel.app'),
+                isLocal: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            };
+
+            envStatus.innerHTML = `
+                <div class="log-entry info">Origin: ${env.origin}</div>
+                <div class="log-entry info">Protocol: ${env.protocol}</div>
+                <div class="log-entry info">Hostname: ${env.hostname}</div>
+                <div class="log-entry ${env.isProduction ? 'success' : 'warning'}">Production: ${env.isProduction}</div>
+                <div class="log-entry ${env.isVercel ? 'info' : 'warning'}">Vercel: ${env.isVercel}</div>
+                <div class="log-entry ${env.isLocal ? 'info' : 'warning'}">Local: ${env.isLocal}</div>
+            `;
+
+            return env;
+        }
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `[${timestamp}] ${message}`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function logNetwork(method, url, status, data) {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${status >= 200 && status < 300 ? 'success' : 'error'}`;
+            entry.innerHTML = `
+                <strong>[${timestamp}] ${method} ${url}</strong><br>
+                Status: ${status}<br>
+                ${data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+            networkLogs.appendChild(entry);
+            networkLogs.scrollTop = networkLogs.scrollHeight;
+        }
+
+        function updateStreamStatus(status, message) {
+            streamIndicator.className = `status-indicator ${status}`;
+            streamText.textContent = message;
+        }
+
+        function clearLogs() {
+            logs.innerHTML = '';
+            networkLogs.innerHTML = '';
+            streamProgress.innerHTML = '';
+            log('Logs cleared', 'info');
+        }
+
+        async function testDirectBackend() {
+            log('Testing direct backend connection...', 'info');
+            const backendUrl = 'https://press-monitor-backend-production.up.railway.app';
+            
+            try {
+                // Test 1: Health check
+                log('Checking backend health...', 'info');
+                const healthResponse = await fetch(`${backendUrl}/health`);
+                logNetwork('GET', `${backendUrl}/health`, healthResponse.status, null);
+                
+                if (healthResponse.ok) {
+                    const health = await healthResponse.json();
+                    log(`Backend health: ${JSON.stringify(health)}`, 'success');
+                } else {
+                    log(`Backend health check failed: ${healthResponse.status}`, 'error');
+                }
+
+                // Test 2: SSE endpoint
+                log('Testing SSE streaming endpoint...', 'info');
+                const testData = {
+                    target_countries: ['AZ'],
+                    source_countries: ['KZ', 'UZ', 'TM', 'KG', 'TJ'],
+                    search_mode: 'about'
+                };
+
+                const response = await fetch(`${backendUrl}/api/press-monitor-stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                logNetwork('POST', `${backendUrl}/api/press-monitor-stream`, response.status, testData);
+
+                if (response.ok) {
+                    log('SSE connection established!', 'success');
+                    updateStreamStatus('active', 'Streaming...');
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let eventCount = 0;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                eventCount++;
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    log(`SSE Event #${eventCount}: ${data.type}`, 'info');
+                                    
+                                    // Display specific event data
+                                    if (data.type === 'phase') {
+                                        streamProgress.innerHTML += `<div class="log-entry info">Phase: ${data.phase} - ${data.message}</div>`;
+                                    } else if (data.type === 'statistics') {
+                                        streamProgress.innerHTML += `<div class="log-entry success">Statistics: ${data.total_articles} articles found</div>`;
+                                    } else if (data.type === 'complete') {
+                                        streamProgress.innerHTML += `<div class="log-entry success">Complete in ${data.duration}</div>`;
+                                        updateStreamStatus('success', 'Complete');
+                                    }
+                                } catch (e) {
+                                    log(`Error parsing SSE data: ${e.message}`, 'error');
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    log(`SSE connection failed: ${response.status}`, 'error');
+                    updateStreamStatus('error', 'Failed');
+                }
+            } catch (error) {
+                log(`Direct backend test error: ${error.message}`, 'error');
+                updateStreamStatus('error', 'Error');
+            }
+        }
+
+        async function testVercelProxy() {
+            log('Testing Vercel proxy...', 'info');
+            const env = checkEnvironment();
+            const proxyUrl = env.isLocal ? 'http://localhost:3000/api/press-monitor-langgraph' : '/api/press-monitor-langgraph';
+            
+            try {
+                const testData = {
+                    target_countries: ['AZ'],
+                    source_countries: ['US', 'RU'],
+                    search_mode: 'about'
+                };
+
+                log(`Sending request to: ${proxyUrl}`, 'info');
+                const response = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                logNetwork('POST', proxyUrl, response.status, testData);
+
+                if (response.ok) {
+                    log('Proxy connection established!', 'success');
+                    updateStreamStatus('active', 'Proxy Streaming...');
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let eventCount = 0;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        const chunk = decoder.decode(value, { stream: true });
+                        log(`Received chunk: ${chunk.length} bytes`, 'info');
+                        buffer += chunk;
+                        
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                eventCount++;
+                                log(`Proxy Event #${eventCount}`, 'info');
+                            }
+                        }
+                    }
+                    
+                    updateStreamStatus('success', 'Proxy Complete');
+                } else {
+                    const error = await response.text();
+                    log(`Proxy failed: ${response.status} - ${error}`, 'error');
+                    updateStreamStatus('error', 'Proxy Failed');
+                }
+            } catch (error) {
+                log(`Vercel proxy test error: ${error.message}`, 'error');
+                updateStreamStatus('error', 'Proxy Error');
+            }
+        }
+
+        async function testFullFlow() {
+            log('Testing full Press Monitor flow...', 'info');
+            
+            // Simulate what the UI component does
+            const hookState = {
+                status: 'idle',
+                phase: null,
+                message: '',
+                progress: 0,
+                languageProgress: {},
+                statistics: null,
+                digest: null,
+                error: null
+            };
+
+            log('Simulating usePressMonitor hook...', 'info');
+            
+            try {
+                const response = await fetch('/api/press-monitor-langgraph', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        target_countries: ['AZ'],
+                        source_countries: ['KZ', 'UZ', 'TM', 'KG', 'TJ'],
+                        search_mode: 'about'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body?.getReader();
+                if (!reader) {
+                    throw new Error('No response body');
+                }
+
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                log('Stream started, processing events...', 'info');
+                updateStreamStatus('active', 'Processing...');
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                // Update hook state simulation
+                                switch (data.type) {
+                                    case 'status':
+                                        hookState.message = data.message;
+                                        log(`Status: ${data.message}`, 'info');
+                                        break;
+                                    case 'phase':
+                                        hookState.phase = data.phase;
+                                        log(`Phase: ${data.phase}`, 'info');
+                                        break;
+                                    case 'statistics':
+                                        hookState.statistics = data;
+                                        log(`Statistics: ${data.total_articles} articles`, 'success');
+                                        break;
+                                    case 'complete':
+                                        hookState.status = 'complete';
+                                        hookState.digest = data.digest;
+                                        log(`Complete! Digest length: ${data.digest?.length || 0}`, 'success');
+                                        updateStreamStatus('success', 'Analysis Complete!');
+                                        break;
+                                    case 'error':
+                                        hookState.status = 'error';
+                                        hookState.error = data.error;
+                                        log(`Error: ${data.error}`, 'error');
+                                        updateStreamStatus('error', 'Analysis Failed');
+                                        break;
+                                }
+                                
+                                // Display current hook state
+                                streamProgress.innerHTML = `<pre>${JSON.stringify(hookState, null, 2)}</pre>`;
+                            } catch (e) {
+                                log(`Error parsing event: ${e.message}`, 'error');
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                log(`Full flow test error: ${error.message}`, 'error');
+                updateStreamStatus('error', 'Flow Error');
+            }
+        }
+
+        // Initialize
+        checkEnvironment();
+        log('Press Monitor Debug Console initialized', 'success');
+    </script>
+</body>
+</html>

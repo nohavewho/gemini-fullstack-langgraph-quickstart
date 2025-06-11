@@ -263,6 +263,7 @@ export function AzerbaijanPressMonitoringAI() {
   // AI SDK v5 handles all API calls automatically through /api/chat
 
   const handlePresetSelect = (countryCodes: string[]) => {
+    console.log('[handlePresetSelect] Called with countries:', countryCodes);
     setPendingPresetCountries(countryCodes);
     setSelectedCountries(countryCodes);
     // setShowCountrySelector(true); // Show country selector first  
@@ -281,11 +282,22 @@ export function AzerbaijanPressMonitoringAI() {
     // Clear pending
     setPendingPresetCountries(null);
     
+    // IMPORTANT: Clear messages to ensure Press Monitor UI is visible
+    setMessages([]);
+    
     // Use the Press Monitor API instead of sending text
+    console.log('Running Press Monitor with:', {
+      targetCountries: [targetCountry],
+      sourceCountries: pendingPresetCountries,
+      dateRange: newDate,
+      searchMode: 'about'
+    });
+    
     await runMonitor({
       targetCountries: [targetCountry], // Currently selected target country (e.g., 'AZ')
       sourceCountries: pendingPresetCountries, // Countries from the preset (e.g., ['KZ', 'UZ', 'TM', 'KG', 'TJ'] for central_asia)
-      searchMode: 'about' // Default search mode
+      searchMode: 'about', // Default search mode
+      dateRange: newDate // Pass the date range
     });
   };
 
@@ -688,13 +700,15 @@ export function AzerbaijanPressMonitoringAI() {
             <Button 
               onClick={() => {
                 // Use Press Monitor API for quick analysis
+                console.log('Quick analysis with date range:', date);
                 runMonitor({
                   targetCountries: [targetCountry],
                   sourceCountries: selectedCountries,
-                  searchMode: 'about'
+                  searchMode: 'about',
+                  dateRange: date // Include date range
                 });
               }}
-              disabled={selectedCountries.length === 0 || pressMonitorState.status === 'streaming'}
+              disabled={selectedCountries.length === 0 || pressMonitorState.status === 'streaming' || !date}
               className="gap-2"
             >
               <CalendarIcon className="h-4 w-4" />
@@ -710,8 +724,9 @@ export function AzerbaijanPressMonitoringAI() {
             <Card className="flex flex-col shadow-lg border-2 min-h-[calc(100vh-240px)]">
               {/* Chat Messages - Scrollable */}
               <div className="flex-1 overflow-auto p-4">
-              {/* Press Monitor Progress */}
-              {pressMonitorState.status !== 'idle' && (
+              {/* Always show either press monitor progress OR chat messages */}
+              {pressMonitorState.status !== 'idle' ? (
+                // Show Press Monitor Progress when active
                 <Card className="mb-4 p-4">
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
@@ -800,9 +815,7 @@ export function AzerbaijanPressMonitoringAI() {
                     )}
                   </div>
                 </Card>
-              )}
-              
-              {messages.length === 0 && pressMonitorState.status === 'idle' ? (
+              ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
                   <h3 className="text-3xl font-bold mb-2">{t('welcome_back')}, {user?.name?.split(' ')[0] || 'Friend'}!</h3>
                   <p className="text-lg text-muted-foreground mb-8 max-w-2xl text-center">
