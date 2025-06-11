@@ -23,6 +23,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { addDays, format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 // Import new components
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -43,6 +44,7 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { ChatHistorySidebar } from "@/components/ChatHistorySidebar";
 import { getMessages } from "@/api/chatAPI";
+import { usePressMonitor } from "@/hooks/usePressMonitor";
 
 // Main Component
 export function AzerbaijanPressMonitoringAI() {
@@ -66,6 +68,9 @@ export function AzerbaijanPressMonitoringAI() {
   const [showSettings, setShowSettings] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pendingPresetCountries, setPendingPresetCountries] = useState<string[] | null>(null);
+  
+  // Press Monitor hook
+  const { state: pressMonitorState, runMonitor, reset: resetPressMonitor } = usePressMonitor();
   
   // Model options with descriptions
   const modelOptions = [
@@ -122,6 +127,40 @@ export function AzerbaijanPressMonitoringAI() {
   
   // Local input state (AI SDK v5 doesn't provide input management)
   const [input, setInput] = useState('');
+  
+  // Save press monitor results to chat history when complete
+  useEffect(() => {
+    if (pressMonitorState.status === 'complete' && pressMonitorState.digest && dbUser) {
+      // Create session if needed
+      const createAndSaveResults = async () => {
+        let sessionToUse = currentSession;
+        if (!sessionToUse) {
+          const presetName = PRESET_GROUPS.find(p => 
+            JSON.stringify(p.countries.sort()) === JSON.stringify(selectedCountries.sort())
+          )?.name || 'Custom Analysis';
+          
+          sessionToUse = await createSession(
+            `Press Analysis: ${presetName}`,
+            undefined,
+            selectedCountries
+          );
+        }
+        
+        // Save the analysis results as a message
+        if (sessionToUse) {
+          await addMessage('assistant', pressMonitorState.digest, {
+            targetCountries: [targetCountry],
+            selectedCountries,
+            dateRange: date,
+            statistics: pressMonitorState.statistics,
+            processingTime: pressMonitorState.processingTime
+          });
+        }
+      };
+      
+      createAndSaveResults();
+    }
+  }, [pressMonitorState.status, pressMonitorState.digest, dbUser]);
   
   // Load messages when session changes - AI SDK v5 handles this differently
   useEffect(() => {
@@ -239,36 +278,15 @@ export function AzerbaijanPressMonitoringAI() {
     setDate(newDate);
     setShowDatePicker(false);
     
-    // Create automatic query based on preset
-    const presetName = PRESET_GROUPS.find(p => 
-      JSON.stringify(p.countries.sort()) === JSON.stringify(pendingPresetCountries.sort())
-    )?.id || 'custom';
-    
-    const dateStr = newDate.from && newDate.to ? 
-      `${format(newDate.from, 'dd.MM.yyyy')} - ${format(newDate.to, 'dd.MM.yyyy')}` : 
-      (language === 'ru' ? 'последние новости' : language === 'tr' ? 'son haberler' : language === 'az' ? 'son xəbərlər' : 'latest news');
-    
-    const queryPrefix = language === 'ru' ? 'Анализ прессы' : 
-                       language === 'tr' ? 'Basın analizi' : 
-                       language === 'az' ? 'Mətbuat təhlili' : 
-                       'Press analysis';
-    const periodPrefix = language === 'ru' ? 'период' : 
-                        language === 'tr' ? 'dönem' : 
-                        language === 'az' ? 'dövr' : 
-                        'period';
-    
-    const query = `${queryPrefix}: ${presetName}, ${periodPrefix}: ${dateStr}`;
-    
     // Clear pending
     setPendingPresetCountries(null);
     
-    // Auto-start analysis with the query directly
-    setInput(query);
-    
-    // Send message directly without waiting for state update
-    if (dbUser) {
-      handleSendMessageWithText(query);
-    }
+    // Use the Press Monitor API instead of sending text
+    await runMonitor({
+      targetCountries: [targetCountry], // Currently selected target country (e.g., 'AZ')
+      sourceCountries: pendingPresetCountries, // Countries from the preset (e.g., ['KZ', 'UZ', 'TM', 'KG', 'TJ'] for central_asia)
+      searchMode: 'about' // Default search mode
+    });
   };
 
   const handleVoiceInput = () => {
@@ -283,6 +301,7 @@ export function AzerbaijanPressMonitoringAI() {
     setCurrentSession(null);
     setMessages([]); // AI SDK v5 way to clear chat
     setAnalysisResults(null);
+    resetPressMonitor(); // Reset press monitor state
   };
 
   // Authentication guard - redirect to login if not authenticated
@@ -668,14 +687,14 @@ export function AzerbaijanPressMonitoringAI() {
           <div className="mt-3 flex justify-end">
             <Button 
               onClick={() => {
-                const dateStr = date?.from && date?.to ? 
-                  `${format(date.from, 'dd.MM.yyyy')} - ${format(date.to, 'dd.MM.yyyy')}` : 
-                  'последняя неделя';
-                const query = `Мониторинг прессы за период: ${dateStr}`;
-                setInput(query);
-                setTimeout(() => handleSendMessage(), 100);
+                // Use Press Monitor API for quick analysis
+                runMonitor({
+                  targetCountries: [targetCountry],
+                  sourceCountries: selectedCountries,
+                  searchMode: 'about'
+                });
               }}
-              disabled={selectedCountries.length === 0}
+              disabled={selectedCountries.length === 0 || pressMonitorState.status === 'streaming'}
               className="gap-2"
             >
               <CalendarIcon className="h-4 w-4" />
@@ -691,7 +710,99 @@ export function AzerbaijanPressMonitoringAI() {
             <Card className="flex flex-col shadow-lg border-2 min-h-[calc(100vh-240px)]">
               {/* Chat Messages - Scrollable */}
               <div className="flex-1 overflow-auto p-4">
-              {messages.length === 0 ? (
+              {/* Press Monitor Progress */}
+              {pressMonitorState.status !== 'idle' && (
+                <Card className="mb-4 p-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold">Press Analysis Progress</h3>
+                      <Badge variant={
+                        pressMonitorState.status === 'complete' ? 'default' : 
+                        pressMonitorState.status === 'error' ? 'destructive' : 
+                        'secondary'
+                      }>
+                        {pressMonitorState.status}
+                      </Badge>
+                    </div>
+                    
+                    {pressMonitorState.message && (
+                      <p className="text-sm text-muted-foreground">{pressMonitorState.message}</p>
+                    )}
+                    
+                    {pressMonitorState.status === 'streaming' && (
+                      <Progress value={pressMonitorState.progress} className="w-full" />
+                    )}
+                    
+                    {/* Language Progress */}
+                    {Object.keys(pressMonitorState.languageProgress).length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Language Analysis:</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(pressMonitorState.languageProgress).map(([lang, progress]) => (
+                            <div key={lang} className="flex items-center gap-2 text-sm">
+                              <Badge variant={
+                                progress.status === 'complete' ? 'default' : 
+                                progress.status === 'error' ? 'destructive' : 
+                                'secondary'
+                              } className="w-16">
+                                {lang}
+                              </Badge>
+                              <span className="text-muted-foreground">
+                                {progress.articlesFound} articles
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Statistics */}
+                    {pressMonitorState.statistics && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Statistics:</h4>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Total: </span>
+                            <span className="font-medium">{pressMonitorState.statistics.totalArticles}</span>
+                          </div>
+                          <div>
+                            <span className="text-green-600">Positive: </span>
+                            <span className="font-medium">{pressMonitorState.statistics.positive}</span>
+                          </div>
+                          <div>
+                            <span className="text-red-600">Negative: </span>
+                            <span className="font-medium">{pressMonitorState.statistics.negative}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Digest */}
+                    {pressMonitorState.digest && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <h4 className="text-sm font-medium">Analysis Summary:</h4>
+                        <div className="text-sm whitespace-pre-wrap">{pressMonitorState.digest}</div>
+                      </div>
+                    )}
+                    
+                    {/* Error */}
+                    {pressMonitorState.error && (
+                      <div className="text-sm text-red-600">
+                        Error: {pressMonitorState.error}
+                      </div>
+                    )}
+                    
+                    {/* Processing Time */}
+                    {pressMonitorState.processingTime && (
+                      <div className="text-xs text-muted-foreground text-right">
+                        Completed in {pressMonitorState.processingTime}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+              
+              {messages.length === 0 && pressMonitorState.status === 'idle' ? (
                 <div className="flex flex-col items-center justify-center h-full">
                   <h3 className="text-3xl font-bold mb-2">{t('welcome_back')}, {user?.name?.split(' ')[0] || 'Friend'}!</h3>
                   <p className="text-lg text-muted-foreground mb-8 max-w-2xl text-center">

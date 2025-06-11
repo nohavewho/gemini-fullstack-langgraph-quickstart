@@ -7,6 +7,9 @@ export default async function handler(req, res) {
   try {
     const RAILWAY_BACKEND_URL = process.env.RAILWAY_BACKEND_URL || 'http://localhost:8000';
     
+    console.log('Press monitor request received:', JSON.stringify(req.body));
+    console.log('Backend URL:', RAILWAY_BACKEND_URL);
+    
     // Forward request to Railway backend streaming endpoint
     const response = await fetch(`${RAILWAY_BACKEND_URL}/api/press-monitor-stream`, {
       method: 'POST',
