@@ -33,8 +33,8 @@ export interface PressMonitorOptions {
   sourceCountries?: string[];
   searchMode?: 'about' | 'in' | 'cross_reference';
   dateRange?: {
-    from: Date;
-    to: Date;
+    from?: Date;
+    to?: Date;
   };
 }
 
@@ -71,16 +71,24 @@ export function usePressMonitor() {
     });
 
     try {
-      const requestBody = {
+      // Build request body with optional date filters. Use an explicit type to avoid mutation errors.
+      const requestBody: {
+        target_countries: string[];
+        source_countries: string[];
+        search_mode: 'about' | 'in' | 'cross_reference';
+        date_from?: string;
+        date_to?: string;
+      } = {
         target_countries: options.targetCountries,
         source_countries: options.sourceCountries || [],
         search_mode: options.searchMode || 'about',
       };
-      
-      // Add date range if provided
+
       if (options.dateRange) {
-        requestBody.date_from = options.dateRange.from.toISOString().split('T')[0];
-        requestBody.date_to = options.dateRange.to.toISOString().split('T')[0];
+        requestBody.date_from = options.dateRange.from?.toISOString().split('T')[0];
+        if (options.dateRange.to) {
+          requestBody.date_to = options.dateRange.to.toISOString().split('T')[0];
+        }
       }
       
       console.log('[usePressMonitor] Request body:', requestBody);
