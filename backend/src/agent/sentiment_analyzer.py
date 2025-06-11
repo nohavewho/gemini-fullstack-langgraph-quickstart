@@ -1,6 +1,7 @@
 """Sentiment analysis for press articles"""
 
 import os
+import asyncio
 from typing import Dict, List, Any
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage
@@ -13,12 +14,13 @@ from .database import save_articles_to_db
 
 async def analyze_article_sentiment(
     article: Dict[str, Any],
-    model: ChatGoogleGenerativeAI
+    model: ChatGoogleGenerativeAI,
+    target_countries: List[str] = ["AZ"]
 ) -> Dict[str, Any]:
     """Analyze sentiment of a single article"""
     
     # Get language-specific instructions
-    lang_instruction = get_language_specific_instruction(article["source_language"])
+    lang_instruction = get_language_specific_instruction(article["source_language"], target_countries)
     
     # Prepare prompt
     prompt = SENTIMENT_ANALYSIS_PROMPT.format(
@@ -115,7 +117,11 @@ async def sentiment_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
                 article = await translate_content_if_needed(article, model)
             
             # Analyze sentiment
-            article = await analyze_article_sentiment(article, model)
+            article = await analyze_article_sentiment(
+                article, 
+                model,
+                state.get("target_countries", ["AZ"])
+            )
             analyzed_articles.append(article)
         
         # Small delay between batches
