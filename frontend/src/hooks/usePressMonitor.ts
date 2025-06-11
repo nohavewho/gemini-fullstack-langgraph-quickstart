@@ -65,7 +65,7 @@ export function usePressMonitor() {
     });
 
     try {
-      const response = await fetch('/api/press-monitor-stream', {
+      const response = await fetch('/api/press-monitor-langgraph', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

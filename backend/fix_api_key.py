@@ -45,8 +45,8 @@ def set_variable(name, value):
 def main():
     print("🔧 Fixing API key in Railway...")
     
-    # Правильный API key из CLAUDE.md
-    correct_api_key = "AIzaSyAlOo0zF7bKfuJ4DI2KABIBcb2UQJ1VgQ4"
+    # ПРАВИЛЬНЫЙ API key из frontend!
+    correct_api_key = "AIzaSyCzc7LPoJNS4QkI5kZDLS4M9RyElZjy9BQ"
     
     variables_to_fix = {
         "GOOGLE_GENERATIVE_AI_API_KEY": correct_api_key,

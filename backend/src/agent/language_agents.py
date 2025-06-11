@@ -144,7 +144,7 @@ async def language_search_node(state: OrchestratorState) -> Dict[str, Any]:
     model = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
         temperature=0.7,
-        google_api_key=os.getenv("GEMINI_API_KEY")
+        google_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
     )
     
     # Run searches in parallel
@@ -224,16 +224,23 @@ async def search_news_in_language(
     for query in language_state["search_queries"]:
         try:
             # Use Google genai SDK directly for grounding search
-            genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY"))
+            # Use GEMINI_API_KEY first, it's the correct one!
+            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            print(f"🔑 Using API key: {api_key[:10]}...{api_key[-5:] if api_key else 'NONE'}")
+            genai.configure(api_key=api_key)
             
             # Create search query with date filter
             search_prompt = f"{query} {date_filter}"
             
-            model = genai.GenerativeModel("gemini-2.0-flash-exp")
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            # Enable grounding with Google Search
             response = model.generate_content(
                 search_prompt,
-                tools=[{"google_search": {}}],
-                generation_config=genai.GenerationConfig(temperature=0.7)
+                generation_config=genai.GenerationConfig(
+                    temperature=0.7,
+                    candidate_count=1
+                ),
+                tools=['google_search_retrieval']
             )
             
             # Extract articles from grounding metadata
@@ -243,34 +250,37 @@ async def search_news_in_language(
                     grounding = candidate.grounding_metadata
                     
                     # Process grounding chunks
-                    for chunk in grounding.grounding_chunks:
-                        if hasattr(chunk, 'web') and chunk.web:
-                            web_data = chunk.web
-                            
-                            # Create article entry for AI filtering
-                            article = {
-                                "url": clean_url(web_data.uri),
-                                "title": web_data.title or "No title",
-                                "source_name": extract_source_name(web_data.uri),
-                                "source_country": "unknown",  # Will be determined later
-                                "source_language": language_code,
-                                "language_name": language_name,
-                                "published_date": None,  # Not available from grounding
-                                "original_content": response.text,  # Full response text
-                                "translated_content": None,
-                                "summary": "",
-                                "sentiment": "neutral",
-                                "sentiment_score": 0.0,
-                                "sentiment_explanation": "",
-                                "key_phrases": [],
-                                "mentions_context": [],
-                                "topics": [],
-                                "search_query": query,
-                                "found_date": datetime.now()
-                            }
-                            
-                            # Add to list for AI filtering later
-                            articles_found.append(article)
+                    if hasattr(grounding, 'grounding_chunks') and grounding.grounding_chunks:
+                        for chunk in grounding.grounding_chunks:
+                            if hasattr(chunk, 'web') and chunk.web:
+                                web_data = chunk.web
+                                
+                                # Create article entry for AI filtering
+                                # The title field contains the domain name
+                                source_domain = web_data.title or "Unknown"
+                                article = {
+                                    "url": web_data.uri,  # Keep the redirect URL
+                                    "title": f"Article from {source_domain}",  # Generate a title
+                                    "source_name": source_domain.replace('.com', '').replace('.ru', '').replace('.tr', '').replace('.az', '').title(),
+                                    "source_country": "unknown",  # Will be determined later
+                                    "source_language": language_code,
+                                    "language_name": language_name,
+                                    "published_date": None,  # Not available from grounding
+                                    "original_content": response.text,  # Full response text
+                                    "translated_content": None,
+                                    "summary": "",
+                                    "sentiment": "neutral",
+                                    "sentiment_score": 0.0,
+                                    "sentiment_explanation": "",
+                                    "key_phrases": [],
+                                    "mentions_context": [],
+                                    "topics": [],
+                                    "search_query": query,
+                                    "found_date": datetime.now()
+                                }
+                                
+                                # Add to list for AI filtering later
+                                articles_found.append(article)
         
         except Exception as e:
             print(f"Error searching '{query}' in {language_name}: {e}")

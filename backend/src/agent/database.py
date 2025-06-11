@@ -236,6 +236,8 @@ async def get_countries_with_sufficient_data(
 ) -> List[str]:
     """Get countries with enough articles for temporal analysis"""
     async with db_manager.acquire() as conn:
+        if not conn:
+            return []  # No database connection
         query = f"""
             SELECT source_country, COUNT(*) as article_count
             FROM press_monitor.press_articles

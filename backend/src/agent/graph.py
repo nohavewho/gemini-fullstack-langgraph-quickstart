@@ -33,11 +33,11 @@ from .utils import (
 
 load_dotenv()
 
-if os.getenv("GEMINI_API_KEY") is None and os.getenv("GOOGLE_GENERATIVE_AI_API_KEY") is None:
-    raise ValueError("GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY must be set")
+if os.getenv("GEMINI_API_KEY") is None and os.getenv("GOOGLE_API_KEY") is None:
+    raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY must be set")
 
-# Configure Google Generative AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY"))
+# Configure Google Generative AI - use correct keys!
+genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY"))
 
 
 def extract_monitoring_params_from_content(message: str) -> dict:
@@ -71,7 +71,7 @@ def generate_query(state: OverallState, config: RunnableConfig) -> QueryGenerati
         model=configurable.query_generator_model,
         temperature=1.0,
         max_retries=2,
-        api_key=os.getenv("GEMINI_API_KEY"),
+        api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
     )
     structured_llm = llm.with_structured_output(SearchQueryList)
 
@@ -118,11 +118,13 @@ def web_research(state: WebSearchState, config: RunnableConfig) -> OverallState:
     )
 
     # Uses the google genai SDK
-    model = genai.GenerativeModel(configurable.query_generator_model)
+    model = genai.GenerativeModel("gemini-1.5-flash")  # Must use 1.5 Flash for Google Search
     response = model.generate_content(
         formatted_prompt,
-        tools=[{"google_search": {}}],
-        generation_config=genai.GenerationConfig(temperature=0)
+        generation_config=genai.GenerationConfig(
+            temperature=0
+        ),
+        tools=['google_search_retrieval']
     )
     # resolve the urls to short urls for saving tokens and time
     grounding_chunks = None
@@ -177,7 +179,7 @@ def reflection(state: OverallState, config: RunnableConfig) -> ReflectionState:
         model=reasoning_model,
         temperature=1.0,
         max_retries=2,
-        api_key=os.getenv("GEMINI_API_KEY"),
+        api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
     )
     result = llm.with_structured_output(Reflection).invoke(formatted_prompt)
 
@@ -256,7 +258,7 @@ def finalize_answer(state: OverallState, config: RunnableConfig):
         model=reasoning_model,
         temperature=0,
         max_retries=2,
-        api_key=os.getenv("GEMINI_API_KEY"),
+        api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
     )
     result = llm.invoke(formatted_prompt)
 

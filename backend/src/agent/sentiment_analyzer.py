@@ -89,7 +89,7 @@ async def sentiment_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
     model = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
         temperature=0.3,  # Lower temperature for more consistent analysis
-        google_api_key=os.getenv("GEMINI_API_KEY")
+        google_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
     )
     
     all_articles = state["all_articles"]

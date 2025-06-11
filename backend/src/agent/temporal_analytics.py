@@ -25,7 +25,7 @@ class TemporalAnalyticsAgent:
         self.model = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0.3,
-            google_api_key=os.getenv("GEMINI_API_KEY")
+            google_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
         )
     
     async def analyze_temporal_changes(
