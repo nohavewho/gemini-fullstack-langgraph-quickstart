@@ -148,7 +148,7 @@ export function AzerbaijanPressMonitoringAI() {
         
         // Save the analysis results as a message
         if (sessionToUse) {
-          await addMessage('assistant', pressMonitorState.digest, {
+          await addMessage('ai', pressMonitorState.digest, {
             targetCountries: [targetCountry],
             selectedCountries,
             dateRange: date,
