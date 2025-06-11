@@ -1,10 +1,12 @@
-import { sql } from '@vercel/postgres';
+import postgres from 'postgres';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let sql;
+  
   try {
     const { auth0Id, email, name, avatar, language = 'en' } = req.body;
 
@@ -16,6 +18,7 @@ export default async function handler(req, res) {
 
     // Use PostgreSQL connection from CLAUDE.md
     const connectionString = 'postgresql://postgres.peojtkesvynmmzftljxo:H%5EOps%23%26PNPXnn9i%40cQ@aws-0-us-east-1.pooler.supabase.com:5432/postgres';
+    sql = postgres(connectionString, { max: 1 });
     
     // Check if user exists, if not create
     const result = await sql`
@@ -30,7 +33,7 @@ export default async function handler(req, res) {
       RETURNING id, auth0_id, email, name, avatar, language, created_at, updated_at, is_active;
     `;
 
-    const user = result.rows[0];
+    const user = result[0];
     
     console.log('User synced successfully:', user);
 
@@ -61,5 +64,10 @@ export default async function handler(req, res) {
       error: 'Failed to sync user',
       details: error.message 
     });
+  } finally {
+    // Close connection
+    if (sql) {
+      await sql.end();
+    }
   }
 }
