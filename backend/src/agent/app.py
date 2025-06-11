@@ -163,9 +163,22 @@ async def run_press_monitor_stream(request: Request):
                 
                 result = await press_monitor_node(state)
                 
-                # Extract content
-                messages = result.get("messages", [])
-                digest_content = messages[-1].content if messages else "No results generated"
+                # Build digest content
+                digest_content = "No results generated"
+                if "press_monitoring_results" in result:
+                    pr = result["press_monitoring_results"]
+                    exec_summary = pr.get("executive_summary", "")
+                    pos_digest = pr.get("positive_digest", "")
+                    neg_digest = pr.get("negative_digest", "")
+
+                    digest_content = "".join([
+                        "## 📊 Executive Summary\n" + exec_summary + "\n\n" if exec_summary else "",
+                        "## ✅ Positive Digest\n" + pos_digest + "\n\n" if pos_digest else "",
+                        "## ❌ Negative Digest\n" + neg_digest + "\n" if neg_digest else "",
+                    ]) or "No digest generated"
+                else:
+                    messages = result.get("messages", [])
+                    digest_content = messages[-1].content if messages else "No results generated"
                 
                 # Complete
                 yield f"data: {json.dumps({'type': 'complete', 'digest': digest_content, 'articles': [], 'duration': '45 seconds'})}\n\n"
