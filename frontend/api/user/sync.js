@@ -1,12 +1,10 @@
-import postgres from 'postgres';
+import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  let sql;
-  
   try {
     const { auth0Id, email, name, avatar, language = 'en' } = req.body;
 
@@ -16,39 +14,57 @@ export default async function handler(req, res) {
 
     console.log('Syncing user:', { auth0Id, email, name });
 
-    // Use PostgreSQL connection from CLAUDE.md
-    const connectionString = 'postgresql://postgres.peojtkesvynmmzftljxo:H%5EOps%23%26PNPXnn9i%40cQ@aws-0-us-east-1.pooler.supabase.com:5432/postgres';
-    sql = postgres(connectionString, { max: 1 });
+    // Use Supabase client instead of raw SQL for better error handling
+    const supabaseUrl = 'https://peojtkesvynmmzftljxo.supabase.co';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlb2p0a2VzdnlubW16ZnRsanhvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzMwMzI3NCwiZXhwIjoyMDUyODc5Mjc0fQ.IxLJDtOaZIJhJTFdtKmk5kN7EW_9LfOPi2k4VN5qFTE';
     
-    // Create users table if it doesn't exist
-    await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        auth0_id text UNIQUE NOT NULL,
-        email text UNIQUE NOT NULL,
-        name text,
-        avatar text,
-        created_at timestamp DEFAULT now() NOT NULL,
-        updated_at timestamp DEFAULT now() NOT NULL,
-        is_active boolean DEFAULT true NOT NULL,
-        language text DEFAULT 'en' NOT NULL
-      );
-    `;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if user exists, if not create
-    const result = await sql`
-      INSERT INTO users (auth0_id, email, name, avatar, language, created_at, updated_at, is_active)
-      VALUES (${auth0Id}, ${email}, ${name || ''}, ${avatar || ''}, ${language}, NOW(), NOW(), true)
-      ON CONFLICT (auth0_id) 
-      DO UPDATE SET 
-        email = EXCLUDED.email,
-        name = EXCLUDED.name,
-        avatar = EXCLUDED.avatar,
-        updated_at = NOW()
-      RETURNING id, auth0_id, email, name, avatar, language, created_at, updated_at, is_active;
-    `;
+    // Try to upsert user (will create table automatically via Supabase migrations)
+    const { data: user, error } = await supabase
+      .from('users')
+      .upsert(
+        {
+          auth0_id: auth0Id,
+          email: email,
+          name: name || '',
+          avatar: avatar || '',
+          language: language,
+          updated_at: new Date().toISOString()
+        },
+        { 
+          onConflict: 'auth0_id',
+          ignoreDuplicates: false 
+        }
+      )
+      .select()
+      .single();
 
-    const user = result[0];
+    if (error) {
+      console.error('Supabase upsert error:', error);
+      
+      // If table doesn't exist, return helpful message
+      if (error.code === '42P01') { // relation does not exist
+        return res.status(500).json({
+          error: 'Database table not found. Please create users table in Supabase Dashboard.',
+          details: 'Run the migration SQL or create table manually',
+          sqlCommand: `
+CREATE TABLE users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  auth0_id text UNIQUE NOT NULL,
+  email text UNIQUE NOT NULL,
+  name text,
+  avatar text,
+  created_at timestamp DEFAULT now() NOT NULL,
+  updated_at timestamp DEFAULT now() NOT NULL,
+  is_active boolean DEFAULT true NOT NULL,
+  language text DEFAULT 'en' NOT NULL
+);`
+        });
+      }
+      
+      throw error;
+    }
     
     console.log('User synced successfully:', user);
 
@@ -67,22 +83,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('User sync error:', error);
     
-    // Check if it's a table doesn't exist error
-    if (error.message.includes('relation "users" does not exist')) {
-      return res.status(500).json({ 
-        error: 'Database table not found. Please run migrations.',
-        details: 'users table does not exist'
-      });
-    }
-
     return res.status(500).json({ 
       error: 'Failed to sync user',
-      details: error.message 
+      details: error.message,
+      code: error.code || 'UNKNOWN',
+      hint: 'Check Supabase Dashboard and ensure users table exists'
     });
-  } finally {
-    // Close connection
-    if (sql) {
-      await sql.end();
-    }
   }
 }
