@@ -161,7 +161,7 @@ async def press_monitor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     
     user_query = last_message.content if hasattr(last_message, 'content') else str(last_message)
     
-    # Get integrated mode from state (set by wrapper)
+    # Correctly respect the integrated_mode flag from the state
     integrated_mode = state.get("integrated_mode", False)
     
     if integrated_mode:
