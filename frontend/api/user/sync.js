@@ -20,6 +20,21 @@ export default async function handler(req, res) {
     const connectionString = 'postgresql://postgres.peojtkesvynmmzftljxo:H%5EOps%23%26PNPXnn9i%40cQ@aws-0-us-east-1.pooler.supabase.com:5432/postgres';
     sql = postgres(connectionString, { max: 1 });
     
+    // Create users table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        auth0_id text UNIQUE NOT NULL,
+        email text UNIQUE NOT NULL,
+        name text,
+        avatar text,
+        created_at timestamp DEFAULT now() NOT NULL,
+        updated_at timestamp DEFAULT now() NOT NULL,
+        is_active boolean DEFAULT true NOT NULL,
+        language text DEFAULT 'en' NOT NULL
+      );
+    `;
+
     // Check if user exists, if not create
     const result = await sql`
       INSERT INTO users (auth0_id, email, name, avatar, language, created_at, updated_at, is_active)
