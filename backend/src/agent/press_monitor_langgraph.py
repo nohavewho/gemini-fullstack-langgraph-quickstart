@@ -162,12 +162,13 @@ async def press_monitor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     user_query = last_message.content if hasattr(last_message, 'content') else str(last_message)
     
     # Get integrated mode from state (set by wrapper)
-    # Enable integrated mode for ALL Azerbaijan press queries for better analysis
-    integrated_mode = True  # Always use deep research integration
+    integrated_mode = state.get("integrated_mode", False)
     
-    print(f"🔄 INTEGRATED MODE ENABLED - Press Monitor + Deep Research")
+    if integrated_mode:
+        print(f"🔄 INTEGRATED MODE ENABLED - Press Monitor + Deep Research")
+    else:
+        print(f"📰 STANDALONE Press Monitor Mode")
     
-    print(f"📰 Press monitor node: integrated_mode = {integrated_mode}")
     print(f"📰 Press monitor query: '{user_query}'")
     
     # Get monitoring parameters

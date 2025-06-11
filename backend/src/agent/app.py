@@ -104,10 +104,6 @@ async def run_press_monitor_stream(request: Request):
                 # Initial status
                 yield f"data: {json.dumps({'type': 'status', 'message': 'Initializing press monitor...'})}\n\n"
                 
-                # Phase: Search preparation
-                languages = ["tr", "ru", "fa", "ka", "hy", "en"]  # Default languages
-                yield f"data: {json.dumps({'type': 'phase', 'phase': 'search', 'message': 'Preparing search...', 'languages': languages})}\n\n"
-                
                 # Create query for press monitoring
                 query = f"monitor press about {' '.join(target_countries)}"
                 if search_mode == "in" and source_countries:
@@ -116,50 +112,20 @@ async def run_press_monitor_stream(request: Request):
                 # Add date range to query if provided
                 if date_from and date_to:
                     query += f" from {date_from} to {date_to}"
-                    yield f"data: {json.dumps({'type': 'status', 'message': f'Searching press from {date_from} to {date_to}...'})}\n\n"
                 
-                # Initialize language progress
-                language_progress = {}
-                for i, lang in enumerate(languages):
-                    language_progress[lang] = {"status": "pending", "articlesFound": 0}
-                    yield f"data: {json.dumps({'type': 'language_start', 'language_code': lang})}\n\n"
-                    
-                    # Simulate processing each language
-                    await asyncio.sleep(0.5)
-                    articles_found = (i + 1) * 3  # Mock article count
-                    language_progress[lang] = {"status": "complete", "articlesFound": articles_found}
-                    
-                    progress = int((i + 1) / len(languages) * 50)  # 50% for search phase
-                    yield f"data: {json.dumps({'type': 'language_complete', 'language_code': lang, 'articles_found': articles_found, 'progress': str(progress)})}\n\n"
-                
-                # Phase: Sentiment analysis
-                yield f"data: {json.dumps({'type': 'phase', 'phase': 'sentiment', 'message': 'Analyzing sentiment...'})}\n\n"
-                
-                total_articles = sum(lang["articlesFound"] for lang in language_progress.values())
-                for i in range(5):
-                    analyzed = int(total_articles * (i + 1) / 5)
-                    progress = 50 + int((i + 1) / 5 * 30)  # 30% for sentiment phase
-                    yield f"data: {json.dumps({'type': 'sentiment_progress', 'progress': str(progress), 'analyzed': analyzed, 'total': total_articles})}\n\n"
-                    await asyncio.sleep(0.3)
-                
-                # Phase: Digest generation
-                yield f"data: {json.dumps({'type': 'phase', 'phase': 'digest', 'message': 'Generating digest...'})}\n\n"
-                await asyncio.sleep(1)
-                
-                # Final statistics
-                positive = int(total_articles * 0.4)
-                negative = int(total_articles * 0.2)
-                neutral = total_articles - positive - negative
-                
-                yield f"data: {json.dumps({'type': 'statistics', 'total_articles': total_articles, 'positive': positive, 'negative': negative, 'neutral': neutral, 'languages': len(languages), 'sources': 15})}\n\n"
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Analysis in progress... This may take several minutes.'})}\n\n"
                 
                 # Run actual press monitoring for real results
                 state = State(
                     messages=[HumanMessage(content=query)],
-                    integrated_mode=False
+                    integrated_mode=False,
+                    press_monitor_params={
+                        "search_mode": search_mode,
+                        "target_languages": ["tr", "ru", "fa", "ka", "hy", "en"],
+                        "target_regions": [],
+                        "date_filter": f"after:{date_from} before:{date_to}" if date_from and date_to else None
+                    }
                 )
-                
-                yield f"data: {json.dumps({'type': 'status', 'message': 'Running real press monitoring...'})}\n\n"
                 
                 result = await press_monitor_node(state)
                 
@@ -181,7 +147,7 @@ async def run_press_monitor_stream(request: Request):
                     digest_content = messages[-1].content if messages else "No results generated"
                 
                 # Complete
-                yield f"data: {json.dumps({'type': 'complete', 'digest': digest_content, 'articles': [], 'duration': '45 seconds'})}\n\n"
+                yield f"data: {json.dumps({'type': 'complete', 'digest': digest_content, 'articles': [], 'duration': 'unknown'})}\n\n"
                 
             except Exception as e:
                 print(f"❌ Streaming error: {e}")
