@@ -1,9 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+import postgres from 'postgres';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  let sql;
 
   try {
     const { auth0Id, email, name, avatar, language = 'en' } = req.body;
@@ -14,41 +16,28 @@ export default async function handler(req, res) {
 
     console.log('Syncing user:', { auth0Id, email, name });
 
-    // Use Supabase client with anon key (service key was invalid)
-    const supabaseUrl = 'https://peojtkesvynmmzftljxo.supabase.co';
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlb2p0a2VzdnlubW16ZnRsanhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczMDMyNzQsImV4cCI6MjA1Mjg3OTI3NH0.Yj3MkKPpXJsB4x0b0WJQBVh2TgR8UGIZ_LnAGus9Ixo';
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Use direct PostgreSQL connection with proper encoding
+    const connectionString = 'postgresql://postgres.peojtkesvynmmzftljxo:H%5EOps%23%26PNPXnn9i%40cQ@aws-0-us-east-1.pooler.supabase.com:5432/postgres';
+    sql = postgres(connectionString, { max: 1 });
 
-    // First, check if user exists by email in the existing users table
-    const { data: existingUser, error: selectError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    // First check if user exists
+    const existingUsers = await sql`
+      SELECT * FROM users WHERE email = ${email}
+    `;
 
     let user;
     
-    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = not found
-      throw selectError;
-    }
-
-    if (existingUser) {
-      // User exists, just return it with mapped fields
-      user = existingUser;
+    if (existingUsers.length > 0) {
+      // User exists, just return it
+      user = existingUsers[0];
     } else {
-      // Create new user in existing table structure
-      const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert({
-          email: email,
-          role: 'user'
-        })
-        .select()
-        .single();
-      
-      if (insertError) throw insertError;
-      user = newUser;
+      // Create new user with existing table structure
+      const newUsers = await sql`
+        INSERT INTO users (id, email, role, created_at)
+        VALUES (gen_random_uuid(), ${email}, 'user', NOW())
+        RETURNING *
+      `;
+      user = newUsers[0];
     }
 
     // Map to expected format (add auth0 fields even if not in DB)
@@ -82,7 +71,12 @@ export default async function handler(req, res) {
       error: 'Failed to sync user',
       details: error.message,
       code: error.code || 'UNKNOWN',
-      hint: 'Check Supabase Dashboard and ensure users table exists'
+      hint: 'Check database connection and table structure'
     });
+  } finally {
+    // Close connection
+    if (sql) {
+      await sql.end();
+    }
   }
 }
