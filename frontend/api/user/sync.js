@@ -14,70 +14,65 @@ export default async function handler(req, res) {
 
     console.log('Syncing user:', { auth0Id, email, name });
 
-    // Use Supabase client instead of raw SQL for better error handling
+    // Use Supabase client with anon key (service key was invalid)
     const supabaseUrl = 'https://peojtkesvynmmzftljxo.supabase.co';
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlb2p0a2VzdnlubW16ZnRsanhvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzMwMzI3NCwiZXhwIjoyMDUyODc5Mjc0fQ.IxLJDtOaZIJhJTFdtKmk5kN7EW_9LfOPi2k4VN5qFTE';
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlb2p0a2VzdnlubW16ZnRsanhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczMDMyNzQsImV4cCI6MjA1Mjg3OTI3NH0.Yj3MkKPpXJsB4x0b0WJQBVh2TgR8UGIZ_LnAGus9Ixo';
     
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Try to upsert user (will create table automatically via Supabase migrations)
-    const { data: user, error } = await supabase
+    // First, check if user exists by email in the existing users table
+    const { data: existingUser, error: selectError } = await supabase
       .from('users')
-      .upsert(
-        {
-          auth0_id: auth0Id,
-          email: email,
-          name: name || '',
-          avatar: avatar || '',
-          language: language,
-          updated_at: new Date().toISOString()
-        },
-        { 
-          onConflict: 'auth0_id',
-          ignoreDuplicates: false 
-        }
-      )
-      .select()
+      .select('*')
+      .eq('email', email)
       .single();
 
-    if (error) {
-      console.error('Supabase upsert error:', error);
-      
-      // If table doesn't exist, return helpful message
-      if (error.code === '42P01') { // relation does not exist
-        return res.status(500).json({
-          error: 'Database table not found. Please create users table in Supabase Dashboard.',
-          details: 'Run the migration SQL or create table manually',
-          sqlCommand: `
-CREATE TABLE users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth0_id text UNIQUE NOT NULL,
-  email text UNIQUE NOT NULL,
-  name text,
-  avatar text,
-  created_at timestamp DEFAULT now() NOT NULL,
-  updated_at timestamp DEFAULT now() NOT NULL,
-  is_active boolean DEFAULT true NOT NULL,
-  language text DEFAULT 'en' NOT NULL
-);`
-        });
-      }
-      
-      throw error;
-    }
+    let user;
     
-    console.log('User synced successfully:', user);
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = not found
+      throw selectError;
+    }
+
+    if (existingUser) {
+      // User exists, just return it with mapped fields
+      user = existingUser;
+    } else {
+      // Create new user in existing table structure
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          email: email,
+          role: 'user'
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      user = newUser;
+    }
+
+    // Map to expected format (add auth0 fields even if not in DB)
+    const mappedUser = {
+      ...user,
+      auth0_id: auth0Id,
+      name: name || email.split('@')[0],
+      avatar: avatar || '',
+      language: language || 'en',
+      is_active: true
+    };
+
+    console.log('User synced successfully:', mappedUser);
 
     return res.status(200).json({
-      id: user.id,
-      auth0Id: user.auth0_id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-      language: user.language,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-      isActive: user.is_active
+      id: mappedUser.id,
+      auth0Id: mappedUser.auth0_id,
+      email: mappedUser.email,
+      name: mappedUser.name,
+      avatar: mappedUser.avatar,
+      language: mappedUser.language,
+      createdAt: mappedUser.created_at || new Date().toISOString(),
+      updatedAt: mappedUser.updated_at || new Date().toISOString(),
+      isActive: mappedUser.is_active
     });
 
   } catch (error) {

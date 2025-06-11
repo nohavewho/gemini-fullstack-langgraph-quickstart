@@ -34,19 +34,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [dbUser, setDbUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Sync user with database
+  // Sync user with database (temporarily disabled for demo)
   useEffect(() => {
     const syncUserData = async () => {
       if (user) {
         try {
-          const { syncUser } = await import('../api/userSync');
-          const userData = await syncUser({
+          // Temporary: Create mock user for demo without DB sync
+          const mockDbUser = {
+            id: '1',
             auth0Id: user.sub || '',
             email: user.email || '',
-            name: user.name,
+            name: user.name || 'User',
             avatar: user.picture,
-          });
-          setDbUser(userData);
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isActive: true,
+            language: 'en'
+          };
+          setDbUser(mockDbUser);
+          console.log('Demo mode: Using mock user data');
         } catch (error) {
           console.error('Failed to sync user:', error);
         }
