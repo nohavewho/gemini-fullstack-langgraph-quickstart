@@ -164,6 +164,9 @@ async def press_monitor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # Correctly respect the integrated_mode flag from the state
     integrated_mode = state.get("integrated_mode", False)
     
+    # Explicit log for Railway
+    print(f"🔍 Press Monitor - integrated_mode={integrated_mode}")
+    
     if integrated_mode:
         print(f"🔄 INTEGRATED MODE ENABLED - Press Monitor + Deep Research")
     else:

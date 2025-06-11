@@ -34,7 +34,8 @@ from .graph import graph
 from .press_monitor_langgraph import (
     detect_press_monitor_intent, 
     extract_monitoring_params,
-    press_monitor_node
+    press_monitor_node,
+    create_press_monitor_response
 )
 from .state import OverallState as State
 from langgraph.graph import StateGraph, END
@@ -137,11 +138,17 @@ async def run_press_monitor_stream(request: Request):
                     pos_digest = pr.get("positive_digest", "")
                     neg_digest = pr.get("negative_digest", "")
 
-                    digest_content = "".join([
-                        "## 📊 Executive Summary\n" + exec_summary + "\n\n" if exec_summary else "",
-                        "## ✅ Positive Digest\n" + pos_digest + "\n\n" if pos_digest else "",
-                        "## ❌ Negative Digest\n" + neg_digest + "\n" if neg_digest else "",
-                    ]) or "No digest generated"
+                    # If no executive_summary, generate the full report
+                    if not exec_summary and not pos_digest and not neg_digest:
+                        print("⚠️ No digest fields found, generating full report...")
+                        full_report = await create_press_monitor_response(result)
+                        digest_content = full_report
+                    else:
+                        digest_content = "".join([
+                            "## 📊 Executive Summary\n" + exec_summary + "\n\n" if exec_summary else "",
+                            "## ✅ Positive Digest\n" + pos_digest + "\n\n" if pos_digest else "",
+                            "## ❌ Negative Digest\n" + neg_digest + "\n" if neg_digest else "",
+                        ]) or "No digest generated"
                 else:
                     messages = result.get("messages", [])
                     digest_content = messages[-1].content if messages else "No results generated"
